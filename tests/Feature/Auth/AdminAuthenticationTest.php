@@ -17,7 +17,56 @@ class AdminAuthenticationTest extends TestCase
         $response
             ->assertOk()
             ->assertSee('Admin Login')
-            ->assertSee('Admin operations console');
+            ->assertSee('RobotSys operations')
+            ->assertSee('A cleaner space.')
+            ->assertSee('Your first session,')
+            ->assertSee(route('manual'), false)
+            ->assertSee('data-login-form', false);
+    }
+
+    public function test_operator_manual_is_available_without_signing_in_and_does_not_expose_operations(): void
+    {
+        $this->get(route('manual'))
+            ->assertOk()
+            ->assertSee('Before your first session')
+            ->assertSee('Choose how you want to see.')
+            ->assertSee('Troubleshooting')
+            ->assertSee(route('login').'#sign-in', false)
+            ->assertDontSee('window.robotDashboard', false)
+            ->assertDontSee('data-command=', false);
+
+        $this->get(route('robot.dashboard.camera'))->assertRedirect(route('login'));
+    }
+
+    public function test_signed_in_admin_can_read_manual_and_return_to_workspace(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)->get(route('manual'))
+            ->assertOk()
+            ->assertSee('Open your workspace')
+            ->assertSee(route('robot.dashboard'), false)
+            ->assertDontSee('Go to sign in');
+
+        $this->get(route('robot.dashboard'))
+            ->assertOk()
+            ->assertSee(route('manual'), false);
+    }
+
+    public function test_failed_login_keeps_email_and_displays_accessible_errors_without_repopulating_password(): void
+    {
+        $this->from(route('login'))->post(route('admin.login.store'), [
+            'email' => 'unknown@example.com',
+            'password' => 'incorrect-password-value',
+            'remember' => '1',
+        ])->assertRedirect(route('login'))->assertSessionHasErrors('email');
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('Unable to sign in')
+            ->assertSee('aria-invalid="true"', false)
+            ->assertSee('value="unknown@example.com"', false)
+            ->assertDontSee('incorrect-password-value');
     }
 
     public function test_admin_can_authenticate(): void

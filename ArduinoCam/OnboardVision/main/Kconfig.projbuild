@@ -1,0 +1,44 @@
+menu "RobotSys onboard vision"
+    config ROBOT_VISION_CONFIDENCE_PERCENT
+        int "Minimum detection confidence (percent)"
+        range 25 95
+        default 50
+    config ROBOT_VISION_INTERVAL_MS
+        int "Pause between completed inferences (milliseconds)"
+        range 100 10000
+        default 200
+    config ROBOT_CAMERA_VFLIP
+        bool "Vertically flip sensor image (saved S3-EYE sketch setting)"
+        default y
+    config ROBOT_CAMERA_HMIRROR
+        bool "Horizontally mirror sensor image"
+        default n
+    config ROBOT_VISION_SERIAL_SNAPSHOT
+        bool "Export one processed JPEG over USB serial for diagnosis"
+        default n
+        help
+            Emit one vision_snapshot JSON event after ten successful inferences
+            to allow camera exposure and white balance to settle. It contains
+            the actual processed camera JPEG as base64,
+            with the same boot ID, sequence, and capture timestamp as its
+            vision_frame. This pauses capture while the image is transmitted.
+            Keep serial logs private; they will contain a camera image.
+endmenu
+
+menu "RobotSys WiFi and Laravel"
+    config ROBOT_WIFI_SSID
+        string "WiFi SSID"
+        default ""
+    config ROBOT_WIFI_PASSWORD
+        string "WiFi Password"
+        default ""
+    config ROBOT_LARAVEL_URL
+        string "Laravel API URL for vision frames"
+        default "http://192.168.23.12:8000/api/vision/frames"
+    config ROBOT_VISION_TOKEN
+        string "Laravel Sanctum token for vision:ingest"
+        default ""
+    config ROBOT_VISION_DEVICE_ID
+        string "Onboard vision device ID"
+        default "CAM-S3-001"
+endmenu

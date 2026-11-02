@@ -2,127 +2,45 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\SendRobotCommandRequest;
-use App\Http\Requests\StoreRobotLogRequest;
+use App\Http\Requests\FilterRobotLogsRequest;
 use App\Models\RobotCommand;
 use App\Models\RobotLog;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
+use App\Services\RobotWorkspaceInsights;
 use Illuminate\View\View;
 
 class RobotDashboardController extends Controller
 {
-    public function index(Request $request): View
+    public function __construct(private RobotWorkspaceInsights $insights) {}
+
+    public function index(FilterRobotLogsRequest $request): View
     {
         $activePage = (string) $request->route('page', 'overview');
         $dashboardPages = $this->dashboardPages();
 
         abort_unless(array_key_exists($activePage, $dashboardPages), 404);
 
-        $latestLog = RobotLog::latest()->first();
-        $logs = RobotLog::latest()->take(10)->get();
+        $filters = $request->safe()->except('page');
+        $selectedRobot = $filters['robot_id'] ?? null;
+        $latestLog = RobotLog::query()->telemetry()
+            ->when(filled($selectedRobot), fn ($query) => $query->where('robot_id', $selectedRobot))
+            ->latest()->orderByDesc('id')->first();
+        $logs = $activePage === 'logs'
+            ? RobotLog::query()->filtered($filters)->latest()->orderByDesc('id')
+                ->paginate((int) ($filters['per_page'] ?? 15))->withQueryString()
+            : null;
+        $robotId = $selectedRobot ?? $latestLog?->robot_id ?? 'ROBOT-001';
+        $robotOptions = RobotLog::query()->select('robot_id')->distinct()->orderBy('robot_id')->limit(100)->pluck('robot_id')
+            ->merge(RobotCommand::query()->select('robot_id')->distinct()->orderBy('robot_id')->limit(100)->pluck('robot_id'))
+            ->push($robotId)->unique()->sort()->values();
+        $recentCommands = RobotCommand::query()->where('robot_id', $robotId)->latest()->orderByDesc('id')->take(8)->get();
+        $cameraDetections = RobotLog::query()
+            ->where('robot_id', $robotId)
+            ->whereIn('detection_source', ['laptop_camera', 'robot_camera'])
+            ->latest()->orderByDesc('id')->take(8)->get();
+        $latestDetection = $cameraDetections->first();
+        $workspaceInsights = in_array($activePage, ['overview', 'evaluation'], true) ? $this->insights->snapshot($robotId) : null;
 
-        return view('robot.dashboard', compact('activePage', 'dashboardPages', 'latestLog', 'logs'));
-    }
-
-    public function store(StoreRobotLogRequest $request): JsonResponse
-    {
-        $validated = $request->validated();
-
-        if (isset($validated['camera_snapshot'])) {
-            $validated['camera_snapshot_path'] = $this->storeCameraSnapshot($validated['camera_snapshot']);
-            unset($validated['camera_snapshot']);
-        }
-
-        $log = RobotLog::create($validated);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Robot data saved successfully.',
-            'data' => $log,
-        ]);
-    }
-
-    public function latest(): JsonResponse
-    {
-        $latestLog = RobotLog::latest()->first();
-
-        return response()->json($latestLog);
-    }
-
-    public function sendCommand(SendRobotCommandRequest $request): JsonResponse
-    {
-        $validated = $request->validated();
-
-        $command = RobotCommand::create([
-            'robot_id' => $validated['robot_id'] ?? 'ROBOT-001',
-            'command' => $validated['command'],
-            'status' => 'pending',
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Command sent successfully.',
-            'data' => $command,
-        ]);
-    }
-
-    private function storeCameraSnapshot(string $snapshot): string
-    {
-        if (! preg_match('/^data:image\/(?<type>png|jpeg|jpg|webp);base64,(?<data>[A-Za-z0-9+\/=]+)$/', $snapshot, $matches)) {
-            throw ValidationException::withMessages([
-                'camera_snapshot' => 'The camera snapshot must be a valid base64 image.',
-            ]);
-        }
-
-        $image = base64_decode($matches['data'], true);
-
-        if ($image === false) {
-            throw ValidationException::withMessages([
-                'camera_snapshot' => 'The camera snapshot could not be decoded.',
-            ]);
-        }
-
-        $extension = $matches['type'] === 'jpeg' ? 'jpg' : $matches['type'];
-        $path = 'robot-detections/'.Str::uuid().'.'.$extension;
-
-        if (! Storage::disk('public')->put($path, $image)) {
-            throw ValidationException::withMessages([
-                'camera_snapshot' => 'The camera snapshot could not be stored.',
-            ]);
-        }
-
-        return $path;
-    }
-
-    public function getPendingCommand(Request $request): JsonResponse
-    {
-        $robotId = $request->query('robot_id', 'ROBOT-001');
-
-        $command = RobotCommand::where('robot_id', $robotId)
-            ->where('status', 'pending')
-            ->latest()
-            ->first();
-
-        return response()->json($command);
-    }
-
-    public function acknowledgeCommand(int $id): JsonResponse
-    {
-        $command = RobotCommand::findOrFail($id);
-
-        $command->update([
-            'status' => 'received',
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Command acknowledged by robot.',
-            'data' => $command,
-        ]);
+        return view('robot.dashboard', compact('activePage', 'dashboardPages', 'latestLog', 'logs', 'filters', 'robotId', 'robotOptions', 'workspaceInsights', 'recentCommands', 'cameraDetections', 'latestDetection'));
     }
 
     /**
@@ -131,40 +49,45 @@ class RobotDashboardController extends Controller
     private function dashboardPages(): array
     {
         return [
+            'control' => [
+                'label' => 'Robot app',
+                'route' => 'robot.dashboard.control',
+                'description' => 'Control & machine vision',
+            ],
             'overview' => [
                 'label' => 'Overview',
                 'route' => 'robot.dashboard',
-                'description' => 'Live robot metrics',
+                'description' => 'Reported status & collection activity',
             ],
             'camera' => [
                 'label' => 'Camera',
                 'route' => 'robot.dashboard.camera',
-                'description' => 'Laptop detection',
+                'description' => 'Camera sources & reviewed detections',
             ],
             'capabilities' => [
                 'label' => 'Capabilities',
                 'route' => 'robot.dashboard.capabilities',
-                'description' => 'System modules',
+                'description' => 'Connections & supported modules',
             ],
             'waste' => [
                 'label' => 'Waste Sorting',
                 'route' => 'robot.dashboard.waste',
-                'description' => 'Bin loads',
+                'description' => 'Reported collection totals & bin levels',
             ],
             'commands' => [
                 'label' => 'Commands',
                 'route' => 'robot.dashboard.commands',
-                'description' => 'Robot actions',
+                'description' => 'Queued actions & robot acknowledgements',
             ],
             'evaluation' => [
                 'label' => 'Evaluation',
                 'route' => 'robot.dashboard.evaluation',
-                'description' => 'Performance scores',
+                'description' => 'Collection performance & activity trends',
             ],
             'logs' => [
                 'label' => 'Logs',
                 'route' => 'robot.dashboard.logs',
-                'description' => 'Telemetry records',
+                'description' => 'Filter, inspect, and export recorded activity',
             ],
         ];
     }

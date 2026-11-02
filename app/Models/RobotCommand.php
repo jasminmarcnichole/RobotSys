@@ -10,5 +10,11 @@ class RobotCommand extends Model
         'robot_id',
         'command',
         'status',
+        'expires_at',
     ];
+
+    protected function casts(): array
+    {
+        return ['expires_at' => 'immutable_datetime'];
+    }
 }

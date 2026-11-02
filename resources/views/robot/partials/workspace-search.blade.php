@@ -1,0 +1,12 @@
+<dialog id="workspaceSearch" class="workspace-search-dialog" aria-labelledby="workspace-search-heading">
+    <div class="flex items-center justify-between gap-4 border-b border-zinc-200 px-5 py-4"><div><p class="portal-eyebrow">Go somewhere</p><h2 id="workspace-search-heading" class="mt-1 text-lg font-semibold">Search workspace</h2></div><button type="button" class="icon-button" data-workspace-search-close aria-label="Close workspace search"><img src="{{ asset('icons/x.svg') }}" class="size-5" alt="" aria-hidden="true"></button></div>
+    <div class="p-4"><label for="workspaceSearchInput" class="sr-only">Find a page or tool</label><input id="workspaceSearchInput" type="search" autocomplete="off" placeholder="Find a page or tool…" class="form-input min-h-12" aria-describedby="workspaceSearchHint"><p id="workspaceSearchHint" class="mt-3 text-xs text-zinc-500">Use arrow keys to choose a page, Enter to open, or Esc to close.</p></div>
+    <nav class="max-h-[55dvh] overflow-y-auto px-3 pb-3" aria-label="Workspace search results">
+        @foreach ($dashboardPages as $page)
+            <a href="{{ route($page['route'], ['robot_id' => $robotId]) }}" class="workspace-search-result" data-workspace-result><span class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50"><img src="{{ asset('icons/arrow-right.svg') }}" class="size-4" alt="" aria-hidden="true"></span><span><span class="block text-sm font-semibold">{{ $page['label'] }}</span><span class="mt-1 block text-xs text-zinc-500">{{ $page['description'] }}</span></span></a>
+        @endforeach
+        <a href="{{ route('manual') }}" class="workspace-search-result" data-workspace-result><span class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50"><img src="{{ asset('icons/circle-help.svg') }}" class="size-4" alt="" aria-hidden="true"></span><span><span class="block text-sm font-semibold">Operator manual</span><span class="mt-1 block text-xs text-zinc-500">Installation, setup, and troubleshooting</span></span></a>
+        <p data-workspace-search-empty hidden class="px-3 py-8 text-center text-sm text-zinc-500">No matching pages. Try “camera”, “logs”, or “control”.</p>
+    </nav>
+    <div class="flex justify-between gap-3 border-t border-zinc-200 px-5 py-3 text-xs text-zinc-500"><span data-workspace-search-count role="status"></span><span>{{ $robotId }}</span></div>
+</dialog>
