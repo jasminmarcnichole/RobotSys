@@ -22,7 +22,9 @@ class PreventStaleRobotCommands
         if (in_array($request->input('command'), ['START', 'RESET'], true) && is_string($robotId)) {
             $connected = RobotLog::query()
                 ->where('robot_id', $robotId)
-                ->where(fn (Builder $query): Builder => $query->whereNull('detection_source')->orWhere('detection_source', 'robot_sensor'))
+                ->where(function (Builder $query): Builder {
+                    return $query->whereNull('detection_source')->orWhereIn('detection_source', ['robot_sensor', 'robot_camera']);
+                })
                 ->whereBetween('created_at', [now()->subSeconds(15), now()])
                 ->exists();
 

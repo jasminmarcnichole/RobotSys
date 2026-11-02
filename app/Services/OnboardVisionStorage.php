@@ -16,7 +16,7 @@ use Throwable;
 class OnboardVisionStorage
 {
     /** @param array<string, mixed> $payload
-     *  @return array{frame: OnboardVisionFrame, created: bool}
+     * @return array{frame: OnboardVisionFrame, created: bool}
      */
     public function ingest(array $payload, ?string $jpeg): array
     {

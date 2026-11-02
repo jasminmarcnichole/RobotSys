@@ -122,6 +122,10 @@ class RobotCommandController extends Controller
     {
         $robotId = $request->input('robot_id', $request->query('robot_id'));
 
-        abort_if($robotId !== null && $robotCommand->robot_id !== $robotId, 404);
+        if ($robotId === null) {
+            return;
+        }
+
+        abort_if((string) $robotId !== (string) $robotCommand->robot_id, 404);
     }
 }

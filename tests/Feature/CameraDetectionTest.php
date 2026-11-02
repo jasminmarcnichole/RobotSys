@@ -106,9 +106,9 @@ class CameraDetectionTest extends TestCase
         $model = config('services.robot.vision_models.waste_primary_20261026');
 
         $this->assertSame(256, $model['input_size']);
-        $this->assertTrue($model['experimental']);
-        $this->assertSame(['plastic_bottle', 'other_plastic', 'paper', 'metal_can'], $model['labels']);
-        $this->assertSame('62dc4baca9bd716b1309d9418fdc305f08cc6c897274a6aa19748ceb6dd94b9f', $model['sha256']);
+        $this->assertFalse($model['experimental']);
+        $this->assertSame(['plastic_bottle', 'other_plastic', 'plastic_wrapper', 'paper', 'metal_can', 'aluminum_can'], $model['labels']);
+        $this->assertSame('31eb829e80a27c490dd951172eb84ce419badf0dabf74fdcb5473dd8d9d615ba', $model['sha256']);
         $this->assertSame($model['sha256'], hash_file('sha256', public_path($model['path'])));
 
         config(['services.robot.vision_default' => 'waste_primary_20261026']);
@@ -116,7 +116,6 @@ class CameraDetectionTest extends TestCase
             $this->actingAs(User::factory()->admin()->create())->get($page)->assertOk()
                 ->assertSee('defaultModel: "waste_primary_20261026"', false)
                 ->assertSee('value="waste_primary_20261026" selected', false)
-                ->assertSee($model['warning'])
                 ->assertSee('EfficientDet Lite2');
         }
     }

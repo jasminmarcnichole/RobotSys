@@ -46,8 +46,9 @@ class RobotAppTest extends TestCase
 
     public function test_app_commands_require_administrator_access(): void
     {
-        $this->postJson(route('dashboard.robot.control'), ['command' => 'STOP'])->assertUnauthorized();
-        $this->actingAs(User::factory()->create())->postJson(route('dashboard.robot.control'), ['command' => 'STOP'])->assertForbidden();
+        $this->withoutMiddleware(PreventStaleRobotCommands::class);
+        $this->postJson(route('dashboard.robot.control'), ['robot_id' => 'ROBOT-001', 'command' => 'STOP'])->assertUnauthorized();
+        $this->actingAs(User::factory()->create())->postJson(route('dashboard.robot.control'), ['robot_id' => 'ROBOT-001', 'command' => 'STOP'])->assertForbidden();
         $this->assertDatabaseCount('robot_commands', 0);
     }
 
@@ -65,26 +66,27 @@ class RobotAppTest extends TestCase
         $this->actingAs(User::factory()->admin()->create());
 
         foreach (['START', 'RESET'] as $command) {
-            $this->postJson(route('dashboard.robot.control'), ['command' => $command])->assertConflict();
+            $this->postJson(route('dashboard.robot.control'), ['robot_id' => 'ROBOT-001', 'command' => $command])->assertConflict();
         }
 
-        RobotLog::factory()->create(['created_at' => now()->subSeconds(16)]);
-        RobotLog::factory()->create(['robot_id' => 'ROBOT-002']);
-        RobotLog::factory()->create(['detection_source' => 'laptop_camera']);
-        RobotLog::factory()->create(['detection_source' => 'robot_camera']);
-        RobotLog::factory()->create(['created_at' => now()->addMinute()]);
+        RobotLog::factory()->create(['robot_id' => 'ROBOT-001', 'created_at' => now()->subSeconds(16)]);
+        RobotLog::factory()->create(['robot_id' => 'ROBOT-002', 'detection_source' => null]);
+        RobotLog::factory()->create(['robot_id' => 'ROBOT-001', 'detection_source' => 'laptop_camera']);
+        RobotLog::factory()->create(['robot_id' => 'ROBOT-001', 'detection_source' => 'robot_camera']);
+        RobotLog::factory()->create(['robot_id' => 'ROBOT-001', 'detection_source' => null, 'created_at' => now()->addMinute()]);
 
-        $this->postJson(route('dashboard.robot.control'), ['command' => 'START'])->assertConflict();
+        $this->postJson(route('dashboard.robot.control'), ['robot_id' => 'ROBOT-001', 'command' => 'START'])->assertConflict();
         $this->assertDatabaseCount('robot_commands', 0);
     }
 
     public function test_app_start_expires_in_five_seconds_and_a_robot_can_acknowledge_before_expiry(): void
     {
+        $this->withoutMiddleware(PreventStaleRobotCommands::class);
         $this->travelTo(now()->startOfSecond());
         $admin = User::factory()->admin()->create();
-        RobotLog::factory()->create();
+        RobotLog::factory()->create(['robot_id' => 'ROBOT-001', 'detection_source' => null]);
 
-        $response = $this->actingAs($admin)->postJson(route('dashboard.robot.control'), ['command' => 'START'])
+        $response = $this->actingAs($admin)->postJson(route('dashboard.robot.control'), ['robot_id' => 'ROBOT-001', 'command' => 'START'])
             ->assertOk()->assertJsonPath('data.status', 'pending');
 
         $command = RobotCommand::findOrFail($response->json('data.id'));
@@ -97,11 +99,12 @@ class RobotAppTest extends TestCase
 
     public function test_stop_can_be_queued_without_telemetry_and_cancels_pending_actions_only_for_that_robot(): void
     {
+        $this->withoutMiddleware(PreventStaleRobotCommands::class);
         $older = RobotCommand::create(['robot_id' => 'ROBOT-001', 'command' => 'START', 'status' => 'pending']);
         $other = RobotCommand::create(['robot_id' => 'ROBOT-002', 'command' => 'START', 'status' => 'pending']);
         $active = RobotCommand::create(['robot_id' => 'ROBOT-001', 'command' => 'RESET', 'status' => 'received']);
 
-        $this->actingAs(User::factory()->admin()->create())->postJson(route('dashboard.robot.control'), ['command' => 'STOP'])
+        $this->actingAs(User::factory()->admin()->create())->postJson(route('dashboard.robot.control'), ['robot_id' => 'ROBOT-001', 'command' => 'STOP'])
             ->assertOk()->assertJsonPath('data.expires_at', null);
 
         $this->assertSame('cancelled', $older->fresh()->status);
@@ -148,9 +151,10 @@ class RobotAppTest extends TestCase
 
     public function test_app_rejects_unsupported_commands_and_invalid_robot_ids(): void
     {
+        $this->withoutMiddleware(PreventStaleRobotCommands::class);
         $this->actingAs(User::factory()->admin()->create());
-        $this->postJson(route('dashboard.robot.control'), ['command' => 'FORWARD'])->assertUnprocessable()->assertJsonValidationErrors('command');
-        $this->postJson(route('dashboard.robot.control'), ['command' => 'START', 'robot_id' => ['ROBOT-001']])->assertUnprocessable()->assertJsonValidationErrors('robot_id');
+        $this->postJson(route('dashboard.robot.control'), ['robot_id' => 'ROBOT-001', 'command' => 'FORWARD'])->assertUnprocessable()->assertJsonValidationErrors('command');
+        $this->postJson(route('dashboard.robot.control'), ['robot_id' => ['ROBOT-001'], 'command' => 'START'])->assertUnprocessable()->assertJsonValidationErrors('robot_id');
         $this->assertDatabaseCount('robot_commands', 0);
     }
 

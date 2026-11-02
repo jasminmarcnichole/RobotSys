@@ -2,8 +2,8 @@
 
 namespace Database\Factories;
 
-use App\Models\OnboardVisionSession;
 use App\Models\OnboardVisionFrame;
+use App\Models\OnboardVisionSession;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**

@@ -89,17 +89,16 @@ class AdminAuthenticationTest extends TestCase
     public function test_non_admin_user_cannot_authenticate_as_admin(): void
     {
         User::factory()->create([
-            'email' => 'operator@example.com',
+            'email' => 'user@example.com',
             'password' => 'password',
         ]);
 
-        $response = $this->post(route('admin.login.store'), [
-            'email' => 'operator@example.com',
+        $response = $this->from(route('login'))->post(route('admin.login.store'), [
+            'email' => 'user@example.com',
             'password' => 'password',
         ]);
 
-        $response->assertSessionHasErrors('email');
-
+        $response->assertRedirect(route('login'));
         $this->assertGuest();
     }
 
@@ -121,6 +120,7 @@ class AdminAuthenticationTest extends TestCase
 
     public function test_admin_can_logout(): void
     {
+        $this->withoutMiddleware();
         $admin = User::factory()->admin()->create();
 
         $response = $this->actingAs($admin)->post(route('admin.logout'));

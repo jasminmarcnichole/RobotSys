@@ -1,8 +1,8 @@
 <?php
 
+use App\Http\Controllers\OnboardVisionController;
 use App\Http\Controllers\RobotCommandController;
 use App\Http\Controllers\RobotLogController;
-use App\Http\Controllers\OnboardVisionController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->group(function (): void {

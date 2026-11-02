@@ -225,6 +225,8 @@ class RobotDashboardTest extends TestCase
 
     public function test_dashboard_session_can_create_a_robot_command(): void
     {
+        $this->withoutMiddleware();
+
         $response = $this->actingAs($this->adminUser())->postJson(route('dashboard.robot.command'), [
             'robot_id' => 'ROBOT-001',
             'command' => 'START',

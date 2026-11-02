@@ -29,8 +29,8 @@ class WasteDatasetPreparationTest extends TestCase
         $result = $this->prepare($this->annotations(), $this->licenses());
         $this->assertSame(0, $result->getExitCode(), $result->getErrorOutput());
         $candidates = json_decode(File::get($this->directory.'/output/candidate_annotations.json'), true, flags: JSON_THROW_ON_ERROR);
-        $this->assertSame(['background', 'plastic_bottle', 'other_plastic', 'paper', 'metal_can'], array_column($candidates['categories'], 'name'));
-        $this->assertSame([1, 2, 3, 4], array_column($candidates['annotations'], 'category_id'));
+        $this->assertSame(['background', 'plastic_bottle', 'other_plastic', 'plastic_wrapper', 'paper', 'metal_can', 'aluminum_can'], array_column($candidates['categories'], 'name'));
+        $this->assertSame([1, 2, 4, 6], array_column($candidates['annotations'], 'category_id'));
         $this->assertCount(1, $candidates['images']);
         $this->assertSame('12345', $candidates['images'][0]['source_photo_id']);
         $this->assertSame('Fixture photographer', $candidates['images'][0]['attribution']['author']);
@@ -254,7 +254,7 @@ PYTHON;
         File::put($path, json_encode($data, JSON_THROW_ON_ERROR));
         $result = $this->checkDataset();
         $this->assertNotSame(0, $result->getExitCode());
-        $this->assertStringContainsString('metal_can', $result->getErrorOutput());
+        $this->assertStringContainsString('aluminum_can', $result->getErrorOutput());
     }
 
     private function trainingFixture(): void
@@ -268,13 +268,13 @@ PYTHON;
             File::ensureDirectoryExists($root.'/'.$split.'/data');
             File::put($root.'/'.$split.'/data/'.$imageId.'.jpg', "\xff\xd8\xff".'unique-header-fixture-'.$index);
             $data = [
-                'categories' => array_map(fn (string $name, int $id): array => ['id' => $id, 'name' => $name], ['background', 'plastic_bottle', 'other_plastic', 'paper', 'metal_can'], range(0, 4)),
+                'categories' => array_map(fn (string $name, int $id): array => ['id' => $id, 'name' => $name], ['background', 'plastic_bottle', 'other_plastic', 'plastic_wrapper', 'paper', 'metal_can', 'aluminum_can'], range(0, 6)),
                 'images' => [[
                     'id' => $imageId, 'file_name' => $imageId.'.jpg', 'width' => 100, 'height' => 80,
                     'source_photo_id' => $photoId,
                     'attribution' => [...$this->licenses()['12345'], 'source_url' => 'https://www.flickr.com/photos/owner/'.$photoId.'/'],
                 ]],
-                'annotations' => array_map(fn (int $id): array => ['id' => $id, 'image_id' => $imageId, 'category_id' => $id, 'bbox' => [10, 10, 20, 30]], range(1, 4)),
+                'annotations' => array_map(fn (int $id): array => ['id' => $id, 'image_id' => $imageId, 'category_id' => $id, 'bbox' => [10, 10, 20, 30]], range(1, 6)),
             ];
             File::put($root.'/'.$split.'/labels.json', json_encode($data, JSON_THROW_ON_ERROR));
         }
@@ -509,11 +509,11 @@ summary = browser.summarize_model(labels, model)
 assert summary['thresholds']['0.5']['class_aware_iou_05'] is None
 assert summary['thresholds']['0.5']['waste_coco_AP'] is None
 assert summary['thresholds']['0.5']['localization_only_iou_05']['true_positives'] == 1, 'Duplicate overlapping annotations cannot receive duplicate credit'
-assert summary['thresholds']['0.5']['localization_only_iou_05']['false_negatives'] == 3
+assert summary['thresholds']['0.5']['localization_only_iou_05']['false_negatives'] == 5
 waste = copy.deepcopy(model)
 waste['label_space'] = 'waste'
 waste['input_size'] = 256
-waste['predictions'][0].update(label='paper', category_id=3)
+waste['predictions'][0].update(label='paper', category_id=4)
 with patch.object(browser, 'score_predictions', return_value={'AP':.25}) as ap:
     summary = browser.summarize_model(labels, waste)
     assert ap.call_count == 2
@@ -682,7 +682,11 @@ for index, split in enumerate(('train', 'validation', 'test'), 1):
         document['objects'].append({'id': index*10+category, 'classTitle': 'litter', 'geometryType': 'rectangle',
             'labelerLogin': actors[split], 'points': {'exterior': [[10, 10], [30, 40]], 'interior': []},
             'tags': [{'name': 'Material', 'value': material}, {'name': 'Object', 'value': kind}]})
-    assert [b['category_id'] for b in hitl.parse_annotation(document)[0]] == [1,2,3,4]
+    cats = [b['category_id'] for b in hitl.parse_annotation(document)[0]]
+    print('DEBUG python:', sys.executable, file=sys.stderr)
+    print('DEBUG ph:', hitl.__file__, file=sys.stderr)
+    print('DEBUG cats:', cats, file=sys.stderr)
+    assert cats == [1,2,4,5]
     invalid = copy.deepcopy(document)
     invalid['objects'][0]['points']['exterior'][1][0] = 101
     rejected(lambda: hitl.parse_annotation(invalid))

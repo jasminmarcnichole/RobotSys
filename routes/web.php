@@ -2,12 +2,12 @@
 
 use App\Http\Controllers\Auth\AdminAuthenticatedSessionController;
 use App\Http\Controllers\CameraDetectionController;
+use App\Http\Controllers\OnboardVisionController;
 use App\Http\Controllers\RobotCommandController;
 use App\Http\Controllers\RobotDashboardController;
 use App\Http\Controllers\RobotInsightsController;
 use App\Http\Controllers\RobotLogController;
 use App\Http\Controllers\RobotLogExportController;
-use App\Http\Controllers\OnboardVisionController;
 use App\Http\Middleware\PreventStaleRobotCommands;
 use Illuminate\Support\Facades\Route;
 

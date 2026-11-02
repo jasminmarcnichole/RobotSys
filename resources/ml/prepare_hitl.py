@@ -148,8 +148,8 @@ def parse_annotation(document: dict[str, Any]) -> tuple[list[dict[str, Any]], st
         elif material in ("metal", "aluminum") and kind == "can":
             category = 4
         if category is not None:
-            mapped.append({"source_object_id": obj["id"], "category_id": category,
-                           "bbox": [x, y, right-x, bottom-y], "requires_can_review": category == 4})
+            mapped.append({"source_object_id": obj["id"], "category_id": OLD_TO_NEW[category],
+                           "bbox": [x, y, right-x, bottom-y], "requires_can_review": OLD_TO_NEW[category] == 5})
     return mapped, next(iter(actors))
 
 
