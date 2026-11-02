@@ -1,0 +1,20 @@
+{
+    "id": "/",
+    "name": "RobotSys Control & Vision",
+    "short_name": "RobotSys",
+    "description": "Robot control, camera review, and collection monitoring.",
+    "start_url": "/dashboard/control",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#f8faf8",
+    "theme_color": "#065f46",
+    "icons": [
+        {"src": "/icons/pwa-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+        {"src": "/icons/pwa-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+    ],
+    "shortcuts": [
+        {"name": "Robot control", "url": "/dashboard/control"},
+        {"name": "Camera detection", "url": "/dashboard/camera"},
+        {"name": "Operator manual", "url": "/manual"}
+    ]
+}

@@ -1,0 +1,15 @@
+# Isolated Linux CPython 3.11 environment for the official, deprecated API.
+# TensorFlow Hub 0.15 still imports pkg_resources.
+setuptools==80.9.0
+tensorflow==2.15.1
+tensorflow-text==2.15.0
+tf-models-official==2.15.0
+tensorflow-hub==0.15.0
+tensorflow-datasets==4.9.4
+tensorflow-metadata==1.15.0
+mediapipe==0.10.14
+numpy==1.26.4
+tensorflow-model-optimization==0.7.5
+tensorflow-addons==0.23.0
+mediapipe-model-maker==0.2.1.4
+keras==2.15.0

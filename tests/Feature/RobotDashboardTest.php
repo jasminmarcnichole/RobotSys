@@ -6,7 +6,9 @@ use App\Models\RobotCommand;
 use App\Models\RobotLog;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class RobotDashboardTest extends TestCase
@@ -38,7 +40,7 @@ class RobotDashboardTest extends TestCase
 
         $response
             ->assertOk()
-            ->assertSee('Autonomous Trash Collecting Robot Dashboard')
+            ->assertSee('Overview')
             ->assertSee('Dashboard pages')
             ->assertSee(route('robot.dashboard.camera'), false)
             ->assertSee(route('robot.dashboard.commands'), false)
@@ -58,9 +60,9 @@ class RobotDashboardTest extends TestCase
             ->assertSee('Camera Detection')
             ->assertSee('Use Laptop Camera')
             ->assertSee('Live Detection')
-            ->assertSee('Save Detection to Logs')
-            ->assertSee('ML Model')
-            ->assertSee('tensorflow-models/coco-ssd', false)
+            ->assertSee('Confirm and save')
+            ->assertSee('TensorFlow Lite')
+            ->assertSee('EfficientDet Lite0')
             ->assertSee('id="cameraFeed"', false);
     }
 
@@ -97,6 +99,8 @@ class RobotDashboardTest extends TestCase
 
     public function test_robot_log_endpoint_persists_container_telemetry(): void
     {
+        Sanctum::actingAs($this->adminUser(), ['robot:log']);
+
         $response = $this->postJson(route('api.robot.log'), [
             'robot_id' => 'ROBOT-002',
             'battery_level' => 74,
@@ -129,6 +133,7 @@ class RobotDashboardTest extends TestCase
 
     public function test_robot_log_endpoint_persists_laptop_camera_detection(): void
     {
+        Sanctum::actingAs($this->adminUser(), ['robot:log']);
         Storage::fake('public');
 
         $response = $this->postJson(route('api.robot.log'), [
@@ -153,7 +158,7 @@ class RobotDashboardTest extends TestCase
                 'width' => 110,
                 'height' => 190,
             ],
-            'camera_snapshot' => 'data:image/png;base64,'.base64_encode('snapshot'),
+            'camera_snapshot' => 'data:image/png;base64,'.base64_encode(UploadedFile::fake()->image('snapshot.png')->getContent()),
             'plastic_bin_level' => 'Low',
             'general_bin_level' => 'Empty',
             'remarks' => 'Laptop camera detected bottle and classified it as Plastic Waste.',
@@ -184,6 +189,8 @@ class RobotDashboardTest extends TestCase
 
     public function test_robot_command_endpoint_creates_pending_command(): void
     {
+        Sanctum::actingAs($this->adminUser(), ['robot:command:create']);
+
         $response = $this->postJson(route('api.robot.command'), [
             'robot_id' => 'ROBOT-001',
             'command' => 'START',
@@ -204,6 +211,8 @@ class RobotDashboardTest extends TestCase
 
     public function test_robot_command_endpoint_rejects_unsupported_commands(): void
     {
+        Sanctum::actingAs($this->adminUser(), ['robot:command:create']);
+
         $response = $this->postJson(route('api.robot.command'), [
             'robot_id' => 'ROBOT-001',
             'command' => 'FLY',
@@ -214,8 +223,31 @@ class RobotDashboardTest extends TestCase
             ->assertJsonValidationErrors('command');
     }
 
+    public function test_dashboard_session_can_create_a_robot_command(): void
+    {
+        $this->withoutMiddleware();
+
+        $response = $this->actingAs($this->adminUser())->postJson(route('dashboard.robot.command'), [
+            'robot_id' => 'ROBOT-001',
+            'command' => 'START',
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.status', 'pending');
+
+        $this->assertDatabaseHas('robot_commands', [
+            'robot_id' => 'ROBOT-001',
+            'command' => 'START',
+            'status' => 'pending',
+        ]);
+    }
+
     public function test_pending_command_can_be_acknowledged(): void
     {
+        Sanctum::actingAs($this->adminUser(), ['robot:command:read', 'robot:command:ack']);
+
         RobotCommand::create([
             'robot_id' => 'ROBOT-001',
             'command' => 'RESET',
@@ -244,6 +276,62 @@ class RobotDashboardTest extends TestCase
             'id' => $commandId,
             'status' => 'received',
         ]);
+    }
+
+    public function test_robot_api_requires_a_token(): void
+    {
+        $response = $this->postJson(route('api.robot.log'), [
+            'movement_status' => 'Moving',
+        ]);
+
+        $response->assertUnauthorized();
+    }
+
+    public function test_robot_api_requires_the_correct_token_ability(): void
+    {
+        Sanctum::actingAs($this->adminUser(), ['robot:read']);
+
+        $response = $this->postJson(route('api.robot.log'), [
+            'movement_status' => 'Moving',
+        ]);
+
+        $response->assertForbidden();
+    }
+
+    public function test_robot_command_status_can_be_completed(): void
+    {
+        Sanctum::actingAs($this->adminUser(), ['robot:command:ack']);
+
+        $command = RobotCommand::create([
+            'robot_id' => 'ROBOT-001',
+            'command' => 'START',
+            'status' => 'received',
+        ]);
+
+        $response = $this->postJson(route('api.robot.command.status', $command), [
+            'robot_id' => 'ROBOT-001',
+            'status' => 'completed',
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.status', 'completed');
+
+        $this->assertDatabaseHas('robot_commands', [
+            'id' => $command->id,
+            'status' => 'completed',
+        ]);
+    }
+
+    public function test_command_history_refresh_is_scoped_to_the_selected_robot(): void
+    {
+        RobotCommand::create(['robot_id' => 'ROBOT-002', 'command' => 'START', 'status' => 'pending']);
+        $command = RobotCommand::create(['robot_id' => 'ROBOT-001', 'command' => 'STOP', 'status' => 'completed']);
+
+        $this->actingAs($this->adminUser())
+            ->getJson('/dashboard/api/robot/commands?robot_id=ROBOT-001')
+            ->assertOk()->assertJsonCount(1)->assertJsonPath('0.id', $command->id)->assertJsonPath('0.status', 'completed');
     }
 
     private function adminUser(): User
