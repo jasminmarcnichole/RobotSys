@@ -117,7 +117,7 @@ def validate_model_labels(displayer: Any) -> None:
         raise TrainingError("Expected one default detection label file in TFLite metadata.")
     labels = displayer.get_associated_file_buffer(label_files[0]).decode("utf-8").splitlines()
     if labels != list(CLASSES.values()):
-        raise TrainingError("TFLite metadata must contain background and the four waste classes in order.")
+        raise TrainingError("TFLite metadata must contain background and the six waste classes in order.")
 
 
 def score_predictions(labels: dict[str, Any], predictions: list[dict[str, Any]]) -> dict[str, Any]:

@@ -64,7 +64,7 @@ class CameraDetectionTest extends TestCase
         Storage::fake('public');
         $this->actingAs(User::factory()->admin()->create());
 
-        foreach (['efficientdet_lite2' => 'EfficientDet Lite2', 'efficientdet_lite0' => 'EfficientDet Lite0', 'waste_primary_20261026' => 'RobotSys Waste (Experimental)'] as $model => $name) {
+        foreach (['efficientdet_lite2' => 'EfficientDet Lite2', 'efficientdet_lite0' => 'EfficientDet Lite0', 'waste_primary_20261026' => 'RobotSys Waste (7-Class)'] as $model => $name) {
             $this->postJson('/dashboard/api/camera/detections', $this->detectionPayload() + [
                 'detection_model' => $model,
                 'classification_model' => 'Untrusted model name',
@@ -95,7 +95,7 @@ class CameraDetectionTest extends TestCase
             ->assertSee('EfficientDet Lite2')
             ->assertSee('EfficientDet Lite0');
 
-        $this->assertSame('efficientdet_lite2', config('services.robot.vision_default'));
+        $this->assertSame('waste_primary_20261026', config('services.robot.vision_default'));
         foreach (config('services.robot.vision_models') as $model) {
             $this->assertFileExists(public_path($model['path']));
         }
@@ -108,7 +108,7 @@ class CameraDetectionTest extends TestCase
         $this->assertSame(256, $model['input_size']);
         $this->assertFalse($model['experimental']);
         $this->assertSame(['plastic_bottle', 'other_plastic', 'plastic_wrapper', 'paper', 'metal_can', 'aluminum_can'], $model['labels']);
-        $this->assertSame('31eb829e80a27c490dd951172eb84ce419badf0dabf74fdcb5473dd8d9d615ba', $model['sha256']);
+        $this->assertSame('b93f380f346d88acdfe30ce86296fdb99b00dd4296b8a9ac37820d8e23217176', $model['sha256']);
         $this->assertSame($model['sha256'], hash_file('sha256', public_path($model['path'])));
 
         config(['services.robot.vision_default' => 'waste_primary_20261026']);
@@ -688,7 +688,7 @@ try {
     assert.equal(await page.locator('#camera_status').textContent(), 'Live detection');
     assert.match(await page.locator('#cameraActiveModel').textContent(), /RobotSys Waste/);
     const trainedLabels = await page.locator('#cameraObjectSelect option').allTextContents();
-    assert.ok(trainedLabels.every((label) => /^(plastic_bottle|other_plastic|paper|metal_can) \(/.test(label)));
+    assert.ok(trainedLabels.every((label) => /^(plastic_bottle|other_plastic|plastic_wrapper|paper|metal_can|aluminum_can) \(/.test(label)));
     await page.locator('#stopCameraButton').click();
     await page.locator('#cameraModelSelect').selectOption('efficientdet_lite2');
     assert.equal(await page.locator('#cameraModelWarning').isVisible(), false);

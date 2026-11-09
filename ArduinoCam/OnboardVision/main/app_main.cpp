@@ -1,3 +1,4 @@
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <initializer_list>
@@ -8,28 +9,24 @@
 #include "dl_image_jpeg.hpp"
 #include "esp_camera.h"
 #include "esp_chip_info.h"
+#include "esp_event.h"
 #include "esp_flash.h"
 #include "esp_heap_caps.h"
+#include "esp_http_client.h"
 #include "esp_log.h"
+#include "esp_netif.h"
 #include "esp_psram.h"
 #include "esp_random.h"
 #include "esp_system.h"
 #include "esp_task_wdt.h"
 #include "esp_timer.h"
+#include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
 #include "freertos/task.h"
 #include "mbedtls/base64.h"
+#include "nvs_flash.h"
 #include "target_detection.hpp"
-#include "esp_wifi.h"
-#include "esp_event.h"
-#include "nvs_flash.h"
-#include "esp_netif.h"
-#include "esp_http_client.h"
-#include "esp_event.h"
-#include "esp_wifi.h"
-#include "nvs_flash.h"
-#include "esp_netif.h"
-#include "freertos/event_groups.h"
 
 #if !CONFIG_IDF_TARGET_ESP32S3 || !CONFIG_COCO_DETECT_MODEL_IN_FLASH_RODATA || !CONFIG_FLASH_COCO_DETECT_YOLO11N_320_S8_V1
 #error "Phase 1 requires ESP32-S3 and the 320 COCO model embedded in flash rodata."
@@ -59,7 +56,7 @@ constexpr float THRESHOLD = CONFIG_ROBOT_VISION_CONFIDENCE_PERCENT / 100.0f;
 char boot_id[17];
 static EventGroupHandle_t s_wifi_event_group;
 static const int WIFI_CONNECTED_BIT = BIT0;
-static bool s_wifi_connected = false;
+static std::atomic<bool> s_wifi_connected{false};
 
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data)
@@ -126,6 +123,15 @@ static esp_err_t http_post_detection(const char *json_data)
     esp_http_client_set_header(client, "Accept", "application/json");
     esp_http_client_set_post_field(client, json_data, strlen(json_data));
     esp_err_t err = esp_http_client_perform(client);
+    if (err == ESP_OK) {
+        const int status = esp_http_client_get_status_code(client);
+        if (status < 200 || status >= 300) {
+            ESP_LOGW(TAG, "Laravel vision endpoint returned HTTP %d", status);
+            err = ESP_FAIL;
+        }
+    } else {
+        ESP_LOGW(TAG, "HTTP POST to Laravel failed: %s", esp_err_to_name(err));
+    }
     esp_http_client_cleanup(client);
     return err;
 }
@@ -329,7 +335,7 @@ esp_err_t initialize_camera()
     return ESP_OK;
 }
 
-void emit_detections(const std::list<dl::detect::result_t> &results, int width, int height,
+void emit_detections(const camera_fb_t &frame, const std::list<dl::detect::result_t> &results, int width, int height,
                      uint64_t sequence, uint64_t captured_at_ms, double inference_ms, double processing_ms)
 {
     cJSON *root = event("vision_frame", "no_target");
@@ -344,6 +350,9 @@ void emit_detections(const std::list<dl::detect::result_t> &results, int width, 
         return;
     }
     for (const auto &result : results) {
+        if (cJSON_GetArraySize(targets) >= 10) {
+            break;
+        }
         robotsys::TargetDetection target;
         if (!robotsys::make_target_detection(result.category, result.score, result.box.data(), result.box.size(),
                                              width, height, THRESHOLD, captured_at_ms, target)) {
@@ -376,6 +385,7 @@ void emit_detections(const std::list<dl::detect::result_t> &results, int width, 
         }
     }
     const int count = cJSON_GetArraySize(targets);
+    const int raw_count = results.size() > 10 ? 10 : static_cast<int>(results.size());
     cJSON_ReplaceItemInObject(root, "status", cJSON_CreateString(count ? "detecting" : "no_target"));
     cJSON_AddTrueToObject(root, "valid_frame");
     cJSON_AddNumberToObject(root, "sequence", sequence);
@@ -384,18 +394,33 @@ void emit_detections(const std::list<dl::detect::result_t> &results, int width, 
     cJSON_AddNumberToObject(root, "frame_width", width);
     cJSON_AddNumberToObject(root, "frame_height", height);
     cJSON_AddNumberToObject(root, "target_count", count);
-    cJSON_AddNumberToObject(root, "raw_detection_count", results.size());
+    cJSON_AddNumberToObject(root, "raw_detection_count", raw_count < count ? count : raw_count);
     cJSON_AddNumberToObject(root, "confidence_threshold", THRESHOLD);
     cJSON_AddNumberToObject(root, "inference_ms", inference_ms);
     cJSON_AddNumberToObject(root, "processing_ms", processing_ms);
     cJSON_AddNumberToObject(root, "free_psram_bytes", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-    // Also add device_id for Laravel API compatibility
     cJSON_AddStringToObject(root, "device_id", CONFIG_ROBOT_VISION_DEVICE_ID);
-    // Post to Laravel if WiFi connected
-    char *json_str = cJSON_PrintUnformatted(root);
-    if (json_str) {
-        http_post_detection(json_str);
-        cJSON_free(json_str);
+    if (complete_event(root) && s_wifi_connected.load() && strlen(CONFIG_ROBOT_VISION_TOKEN) > 0 &&
+        frame.format == PIXFORMAT_JPEG && frame.len > 0 && frame.len <= 64 * 1024) {
+        size_t capacity = 0;
+        if (mbedtls_base64_encode(nullptr, 0, &capacity, frame.buf, frame.len) == MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL) {
+            auto *encoded = static_cast<unsigned char *>(heap_caps_malloc(capacity, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+            size_t encoded_length = 0;
+            if (encoded) {
+                if (mbedtls_base64_encode(encoded, capacity, &encoded_length, frame.buf, frame.len) == 0 &&
+                    encoded_length < capacity) {
+                    encoded[encoded_length] = '\0';
+                    cJSON_AddStringToObject(root, "frame_jpeg_base64", reinterpret_cast<const char *>(encoded));
+                    char *json_str = cJSON_PrintUnformatted(root);
+                    if (json_str) {
+                        http_post_detection(json_str);
+                        cJSON_free(json_str);
+                    }
+                    cJSON_DeleteItemFromObjectCaseSensitive(root, "frame_jpeg_base64");
+                }
+                heap_caps_free(encoded);
+            }
+        }
     }
     emit(root);
 }
@@ -464,7 +489,7 @@ void run_vision()
                 auto &results = detector.run(image);
                 const int64_t completed = esp_timer_get_time();
                 heap_caps_free(image.data);
-                emit_detections(results, width, height, sequence, acquired,
+                emit_detections(*frame, results, width, height, sequence, acquired,
                                 (completed - inference_started) / 1000.0, (completed - started) / 1000.0);
 #if CONFIG_ROBOT_VISION_SERIAL_SNAPSHOT
                 if (!snapshot_attempted && ++snapshot_warmup_frames >= 10) {

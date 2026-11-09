@@ -138,15 +138,18 @@ class RobotActivityLogTest extends TestCase
     public function test_browser_observations_do_not_export_copied_physical_counters(): void
     {
         RobotLog::factory()->create(['detection_source' => 'laptop_camera', 'detected_trash_count' => 9, 'successful_pickup_count' => 8]);
+        RobotLog::factory()->create(['detection_source' => 'robot_camera', 'detected_trash_count' => 7, 'successful_pickup_count' => 6]);
 
         $response = $this->actingAs(User::factory()->admin()->create())->get('/dashboard/logs/export');
 
         $response->assertOk();
         $rows = $this->csvRows($response->streamedContent());
-        $record = array_combine($rows[0], $rows[1]);
-        $this->assertSame('', $record['Battery (%)']);
-        $this->assertSame('', $record['Detected count']);
-        $this->assertSame('', $record['Successful pickups']);
+        foreach ([1, 2] as $rowIndex) {
+            $record = array_combine($rows[0], $rows[$rowIndex]);
+            $this->assertSame('', $record['Battery (%)']);
+            $this->assertSame('', $record['Detected count']);
+            $this->assertSame('', $record['Successful pickups']);
+        }
     }
 
     public function test_empty_csv_contains_headers_and_export_is_admin_only(): void

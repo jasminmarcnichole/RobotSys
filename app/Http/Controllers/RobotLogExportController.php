@@ -26,7 +26,7 @@ class RobotLogExportController extends Controller
 
             try {
                 foreach ($query->where('id', '<=', $lastId)->latest()->orderByDesc('id')->lazy(500) as $log) {
-                    $isTelemetry = $log->detection_source !== 'laptop_camera';
+                    $isTelemetry = $log->detection_source === null || $log->detection_source === 'robot_sensor';
                     $row = [
                         $log->id, $log->created_at?->format('Y-m-d H:i:s'), $log->robot_id,
                         $log->detection_source ?? 'robot_sensor', $log->movement_status,

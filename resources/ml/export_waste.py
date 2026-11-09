@@ -41,7 +41,7 @@ def mask_background_logits(scores: Any) -> Any:
     import tensorflow as tf
 
     if len(scores.shape) != 4 or scores.shape[-1] is None or int(scores.shape[-1]) % len(CLASSES):
-        raise TrainingError("Expected five logits per anchor in a four-dimensional prediction tensor.")
+        raise TrainingError("Expected seven logits per anchor in a four-dimensional prediction tensor.")
     grouped = tf.reshape(scores, [*scores.shape[:3], -1, len(CLASSES)])
     masked = tf.concat([tf.fill(tf.shape(grouped[..., :1]), tf.cast(-100, scores.dtype)), grouped[..., 1:]], axis=-1)
     return tf.reshape(masked, scores.shape)

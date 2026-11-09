@@ -722,57 +722,75 @@ export function setupCamera(dashboard) {
     populateDevices();
     updateModelWarning();
     controls();
-}
 
+    const onboardStatusEl = get('onboardVisionStatus');
+    if (onboardStatusEl && dashboard.urls?.visionLatest) {
+        let onboardTimer = null;
+        const pollOnboardVision = async () => {
+            clearTimeout(onboardTimer);
+            if (document.hidden) {
+                return;
+            }
+            try {
+                const url = new URL(dashboard.urls?.visionLatest ?? '/dashboard/api/vision/latest', window.location.origin);
+                url.searchParams.set('device_id', dashboard.vision?.onboardDeviceId ?? 'CAM-S3-001');
+                const data = await requestJson(url);
+                const connected = data?.connection_status === 'connected';
+                setPill(onboardStatusEl, connected ? 'success' : 'secondary', connected ? 'Connected' : 'Offline');
+                setText('onboardVisionDevice', data?.device_id || '-');
+                setText('onboardVisionTime', data?.server_time ? new Date(data.server_time).toLocaleTimeString() : '-');
 
-// Onboard Vision polling
-function updateOnboardVision() {
-    fetch('/dashboard/api/vision/latest?device_id=CAM-S3-001')
-        .then(r => r.json())
-        .then(data => {
-            const statusEl = document.getElementById('onboardVisionStatus');
-            const countEl = document.getElementById('onboardVisionCount');
-            const detEl = document.getElementById('onboardVisionDetections');
-            const imgEl = document.getElementById('onboardVisionImage');
-            const noImgEl = document.getElementById('onboardVisionNoImage');
-            const devEl = document.getElementById('onboardVisionDevice');
-            const timeEl = document.getElementById('onboardVisionTime');
-            
-            if (statusEl) {
-                statusEl.textContent = data.connection_status === 'connected' ? 'Connected' : 'Offline';
-                statusEl.className = data.connection_status === 'connected' 
-                    ? 'status-badge bg-emerald-100 text-emerald-700' 
-                    : 'status-badge bg-zinc-100 text-zinc-600';
-            }
-            if (devEl) devEl.textContent = data.device_id || '-';
-            if (timeEl) timeEl.textContent = data.server_time ? new Date(data.server_time).toLocaleTimeString() : '-';
-            
-            const detections = data.latest?.detections || [];
-            if (countEl) countEl.textContent = detections.length + ' object(s)';
-            
-            if (detEl) {
-                detEl.innerHTML = '';
-                detections.forEach(d => {
-                    const div = document.createElement('div');
-                    div.className = 'p-2 bg-zinc-50 rounded border border-zinc-200';
-                    div.innerHTML = '<div class="flex justify-between"><span class="font-medium">' + (d.label||d.class_id) + '</span><span>' + Math.round((d.confidence||0)*100) + '%</span></div><div class="text-xs text-zinc-500">Pos: ' + (d.direction||'-') + ' | Box: ' + (d.bbox?.x||0) + ',' + (d.bbox?.y||0) + ' ' + (d.bbox?.width||0) + 'x' + (d.bbox?.height||0) + '</div>';
-                    detEl.appendChild(div);
-                });
-            }
-            
-            if (data.latest?.snapshot_url && imgEl) {
-                imgEl.src = data.latest.snapshot_url;
-                imgEl.classList.remove('hidden');
-                if (noImgEl) noImgEl.classList.add('hidden');
-            } else if (imgEl) {
-                imgEl.classList.add('hidden');
-                if (noImgEl) noImgEl.classList.remove('hidden');
-            }
-        })
-        .catch(() => {});
-}
+                const detections = Array.isArray(data?.latest?.detections) ? data.latest.detections : [];
+                setText('onboardVisionCount', `${detections.length} object(s)`);
 
-if (document.getElementById('onboardVisionStatus')) {
-    updateOnboardVision();
-    setInterval(updateOnboardVision, 3000);
+                const detEl = get('onboardVisionDetections');
+                if (detEl) {
+                    const rows = detections.map((d) => {
+                        const row = document.createElement('div');
+                        row.className = 'p-2 bg-zinc-50 rounded border border-zinc-200';
+                        const header = document.createElement('div');
+                        header.className = 'flex justify-between';
+                        const label = document.createElement('span');
+                        label.className = 'font-medium';
+                        label.textContent = String(d.label || d.class_id || 'Object');
+                        const conf = document.createElement('span');
+                        conf.textContent = `${Math.round((Number(d.confidence) || 0) * 100)}%`;
+                        header.append(label, conf);
+                        const meta = document.createElement('div');
+                        meta.className = 'text-xs text-zinc-500';
+                        meta.textContent = `Pos: ${d.direction || '-'} | Box: ${d.bbox?.x ?? 0},${d.bbox?.y ?? 0} ${d.bbox?.width ?? 0}x${d.bbox?.height ?? 0}`;
+                        row.append(header, meta);
+                        return row;
+                    });
+                    detEl.replaceChildren(...rows);
+                }
+
+                const imgEl = get('onboardVisionImage');
+                const noImgEl = get('onboardVisionNoImage');
+                if (data?.latest?.snapshot_url && imgEl) {
+                    imgEl.src = data.latest.snapshot_url;
+                    imgEl.classList.remove('hidden');
+                    noImgEl?.classList.add('hidden');
+                } else if (imgEl) {
+                    imgEl.classList.add('hidden');
+                    noImgEl?.classList.remove('hidden');
+                }
+            } catch {
+                // Keep quiet during background polling
+            } finally {
+                if (!document.hidden) {
+                    onboardTimer = setTimeout(pollOnboardVision, 3000);
+                }
+            }
+        };
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                clearTimeout(onboardTimer);
+            } else {
+                pollOnboardVision();
+            }
+        });
+        window.addEventListener('pagehide', () => clearTimeout(onboardTimer));
+        pollOnboardVision();
+    }
 }

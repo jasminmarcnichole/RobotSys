@@ -122,7 +122,7 @@ def validate_benchmark(report: dict[str, Any], labels: dict[str, Any], labels_ha
             if model["label_space"] == "generic":
                 if category is not None:
                     raise TrainingError("Generic object labels cannot establish waste-material categories.")
-            elif not integer(category) or category not in (1, 2, 3, 4) or label != CLASSES[category]:
+            elif not integer(category) or category not in (1, 2, 3, 4, 5, 6) or label != CLASSES[category]:
                 raise TrainingError("Waste labels must match canonical class IDs.")
 
 

@@ -305,7 +305,12 @@ def validate_dataset(dataset: Path) -> dict[str, Any]:
                 raise TrainingError(f"{split}: crowd annotations cannot establish individual waste class coverage.")
             class_counts[category_id] += 1
             annotated_images.add(image_id)
-        missing = [CLASSES[key] for key in (1, 2, 3, 4, 5, 6) if not class_counts[key]]
+        required_classes = (
+            (1, 2, 4, 5)
+            if hitl_provenance is not None and all(img.get("source_collection") == HITL_COLLECTION for img in images)
+            else (1, 2, 3, 4, 5, 6)
+        )
+        missing = [CLASSES[key] for key in required_classes if not class_counts[key]]
         if missing:
             raise TrainingError(f"{split}: missing annotations for {', '.join(missing)}.")
         if annotated_images != set(image_map):

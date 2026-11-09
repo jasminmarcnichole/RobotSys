@@ -210,7 +210,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
         (output / split / "labels.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         counts = Counter(item["category_id"] for item in data["annotations"])
         summary["counts"][split] = {"images": len(data["images"]), "annotations": len(data["annotations"]),
-            "annotations_by_class": {CLASSES[key]: counts[key] for key in (1, 2, 3, 4)}}
+            "annotations_by_class": {CLASSES[key]: counts[key] for key in (1, 2, 3, 4, 5, 6)}}
     (output / "realdirt-provenance.json").write_text(json.dumps(proof, indent=2) + "\n", encoding="utf-8")
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     validate_dataset(output)

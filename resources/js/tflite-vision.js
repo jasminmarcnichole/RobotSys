@@ -1,7 +1,8 @@
 export class TensorFlowLiteVision {
-    constructor(modelUrl, inputSize = 320) {
+    constructor(modelUrl, inputSize = 320, labels = null) {
         this.modelUrl = modelUrl;
         this.inputSize = inputSize;
+        this.labels = labels;
         this.worker = null;
         this.ready = null;
         this.sequence = 0;
@@ -51,6 +52,12 @@ export class TensorFlowLiteVision {
             const timer = setTimeout(() => {
                 if (this.worker === worker) {
                     this.dispose(new Error('Detection timed out. Retry to reload the model.'));
+                } else {
+                    const pending = this.requests.get(id);
+                    if (pending && pending.timer === timer) {
+                        this.requests.delete(id);
+                        pending.reject(new Error('Detection stopped.'));
+                    }
                 }
             }, timeout);
             this.requests.set(id, { resolve, reject, timer });

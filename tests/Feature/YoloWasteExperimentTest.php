@@ -75,8 +75,8 @@ import trash_detection as yolo
 from train_waste import TrainingError
 root=Path(sys.argv[2]);label=root/'9.txt'
 labels={'images':[{'id':9,'width':100,'height':80}],
-        'annotations':[{'image_id':9,'category_id':index,'bbox':[10,10,20,20]} for index in range(1,5)]}
-correct=''.join(f'{index} 0.2 0.25 0.2 0.25\n' for index in range(4))
+        'annotations':[{'image_id':9,'category_id':index,'bbox':[10,10,20,20]} for index in range(1,7)]}
+correct=''.join(f'{index} 0.2 0.25 0.2 0.25\n' for index in range(6))
 label.write_text(correct)
 yolo.verify_converted_boxes(labels,root)
 for wrong in (correct.replace('3 0.2','2 0.2'),correct.replace('0.25','0.35'),correct+'0 0.2 0.25 0.2 0.25\n'):
@@ -102,10 +102,10 @@ def rejects(callback):
     try:callback()
     except TrainingError:return
     raise AssertionError('Tampered manifest accepted')
-write(source/'summary.json',{'status':'prepared','full_dataset':True,'license_verified_images':12})
+write(source/'summary.json',{'status':'prepared','full_dataset':True,'license_verified_images':18})
 for offset,split in enumerate(('train','validation','test')):
     images=[];annotations=[]
-    for category in range(1,5):
+    for category in range(1,7):
         identity=offset*10+category;photo=str(1000+identity);content=b'\xff\xd8\xff'+f'photo-{identity}'.encode()
         path=source/split/'data'/f'{identity}.jpg';path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(content)
         images.append({'id':identity,'file_name':path.name,'width':100,'height':80,'sha256':hashlib.sha256(content).hexdigest(),

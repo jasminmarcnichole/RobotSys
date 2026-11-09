@@ -47,7 +47,7 @@ def validate_report(
         if not isinstance(prediction, dict):
             raise TrainingError("Invalid saved prediction.")
         image_id, category = prediction.get("image_id"), prediction.get("category_id")
-        if not integer(image_id) or image_id not in images or not integer(category) or category not in (1, 2, 3, 4):
+        if not integer(image_id) or image_id not in images or not integer(category) or category not in (1, 2, 3, 4, 5, 6):
             raise TrainingError("Prediction references an unknown image or waste class.")
         score, box = prediction.get("score"), prediction.get("bbox")
         if not finite_number(score) or not 0 <= score <= 1:

@@ -13,9 +13,8 @@ class RobotCommandController extends Controller
     public function index(Request $request): JsonResponse
     {
         $robotId = $request->query('robot_id', 'ROBOT-001');
-        if (is_string($robotId)) {
-            $this->expirePendingCommands($robotId);
-        }
+        $robotId = is_string($robotId) ? $robotId : 'ROBOT-001';
+        $this->expirePendingCommands($robotId);
 
         return response()->json(RobotCommand::query()
             ->where('robot_id', $robotId)

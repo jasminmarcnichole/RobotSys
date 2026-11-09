@@ -115,7 +115,7 @@ def keras_predictions(result: dict[str, Any], image: dict[str, Any], scale: list
             "score": float(result["detection_scores"][0, index]),
             "bbox": [left, top, right - left, bottom - top],
         }
-        if prediction["category_id"] not in (1, 2, 3, 4):
+        if prediction["category_id"] not in (1, 2, 3, 4, 5, 6):
             raise TrainingError("Unexpected Keras category ID.")
         projected = project_prediction(prediction, image, scale)
         if projected is not None:
@@ -138,7 +138,7 @@ def postprocessed_predictions(result: list[Any], image: dict[str, Any], scale: l
     predictions = []
     for box, category, score in zip(boxes[0][:count], categories[0][:count], scores[0][:count]):
         if (not isinstance(box, list) or len(box) != 4 or not all(finite_number(value) for value in box)
-                or not finite_number(category) or int(category) != category or category not in (1, 2, 3, 4)
+                or not finite_number(category) or int(category) != category or category not in (1, 2, 3, 4, 5, 6)
                 or not finite_number(score) or not 0 <= score <= 1):
             raise TrainingError("Invalid normalized postprocessed box, foreground class, or score.")
         top, left, bottom, right = box

@@ -180,7 +180,7 @@ export async function loadInputs(dataset, modelsPath, output, { diagnosticTraini
         }
         const summary = documents['summary.json'], review = documents['review.json'], proof = documents['hitl-provenance.json'];
         const ids = [...images.keys()];
-        const counts = new Map([1, 2, 3, 4].map((id) => [id, 0]));
+        const counts = new Map([1, 2, 4, 5].map((id) => [id, 0]));
         if (summary.schema_version !== 1 || summary.status !== 'diagnostic_selected' || summary.diagnostic_only !== true
             || summary.evaluation_only !== true || summary.full_dataset !== false || summary.promoted !== false
             || summary.evaluation_scope !== 'training_resubstitution' || !Number.isSafeInteger(summary.photos_per_class)
@@ -261,7 +261,7 @@ export async function loadInputs(dataset, modelsPath, output, { diagnosticTraini
     const workerSourcePath = resolve(root, 'resources/js/vision-worker.js');
     const cameraSourcePath = resolve(root, 'resources/js/robot-camera.js');
     const workerSource = await readFile(workerSourcePath, 'utf8');
-    if (!/scoreThreshold:\s*0\.25\s*,/.test(workerSource) || !/maxResults:\s*10\s*,/.test(workerSource)) {
+    if (!/scoreThreshold:\s*(?:data\.scoreThreshold\s*\|\|\s*)?0\.25\s*,/.test(workerSource) || !/maxResults:\s*(?:data\.maxResults\s*\|\|\s*)?10\s*,/.test(workerSource)) {
         throw new Error('Worker settings changed; review this benchmark contract.');
     }
     return { dataset, split, diagnostic, diagnosticFiles, labels, labelsPath, modelsPath: await realpath(modelsPath), labels_sha256: sha256(labelsBytes), models, images, assets, worker, preparedFiles,

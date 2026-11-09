@@ -17,8 +17,11 @@ class CameraDetectionController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $robotId = $request->query('robot_id', 'ROBOT-001');
+        $robotId = is_string($robotId) ? $robotId : 'ROBOT-001';
+
         return response()->json(RobotLog::query()
-            ->where('robot_id', $request->query('robot_id', 'ROBOT-001'))
+            ->where('robot_id', $robotId)
             ->whereIn('detection_source', ['laptop_camera', 'robot_camera'])
             ->latest()->orderByDesc('id')->limit(8)->get());
     }

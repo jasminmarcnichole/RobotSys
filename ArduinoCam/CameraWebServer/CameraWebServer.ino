@@ -10,8 +10,12 @@
 // ===========================
 // Enter your WiFi credentials
 // ===========================
-const char *ssid = "Xiaomi 12T Pro";
-const char *password = "12345678"; // Update if your network requires password
+#if __has_include("wifi_secrets.h")
+#include "wifi_secrets.h"
+#else
+const char *ssid = "YOUR_WIFI_SSID";
+const char *password = "YOUR_WIFI_PASSWORD";
+#endif
 
 void startCameraServer();
 void setupLedFlash();

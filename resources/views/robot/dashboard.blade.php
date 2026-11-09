@@ -65,10 +65,12 @@
                 insights: @json(route('dashboard.robot.insights')),
                 cameraSnapshot: @json(config('services.robot.camera_snapshot_url') ? route('dashboard.camera.snapshot') : null),
                 cameraStream: @json(config('services.robot.camera_stream_url')),
+                visionLatest: @json(route('dashboard.vision.latest')),
             },
             vision: {
                 defaultModel: @json($defaultVisionModel),
                 models: @json($visionModels),
+                onboardDeviceId: @json(config('services.robot.onboard.device_id', 'CAM-S3-001')),
             },
             robotId: @json($robotId),
             controlApp: @json($activePage === 'control'),

@@ -11,15 +11,16 @@ return [
         ],
         'camera_snapshot_url' => env('ESP32_CAMERA_SNAPSHOT_URL'),
         'camera_stream_url' => env('ESP32_CAMERA_STREAM_URL'),
-        'vision_default' => 'waste_primary_20261026',
+        'vision_default' => env('ROBOT_VISION_MODEL', 'waste_primary_20261026'),
         'vision_models' => [
             'waste_primary_20261026' => [
                 'name' => 'RobotSys Waste (7-Class)',
                 'path' => 'models/waste-primary-62dc4baca9bd.tflite',
                 'input_size' => 256,
-                'sha256' => '31eb829e80a27c490dd951172eb84ce419badf0dabf74fdcb5473dd8d9d615ba',
+                'sha256' => 'b93f380f346d88acdfe30ce86296fdb99b00dd4296b8a9ac37820d8e23217176',
                 'labels' => ['plastic_bottle', 'other_plastic', 'plastic_wrapper', 'paper', 'metal_can', 'aluminum_can'],
                 'experimental' => false,
+                'warning' => 'Trained on 6 waste classes (plastic bottle, other plastic, plastic wrapper, paper, metal can, aluminum can). Leaves, wood, and rocks are untrained. Human review required.',
                 'trained_at' => '2026-11-01T13:32:21Z',
                 'val_coco_ap' => 0.194,
                 'dataset' => 'taco-realdirt-hitl-can-reviewed-20261004',

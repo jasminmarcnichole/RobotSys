@@ -34,9 +34,10 @@ self.onmessage = async ({ data }) => {
             detections = detections.map(d => {
                 if (d.categories && d.categories[0]) {
                     const idx = d.categories[0].index;
-                    if (typeof idx === "number" && customLabels[idx]) {
-                        d.categories[0].categoryName = customLabels[idx];
-                        d.categories[0].displayName = customLabels[idx];
+                    const label = typeof idx === "number" ? (customLabels[idx - 1] ?? customLabels[idx]) : null;
+                    if (label) {
+                        d.categories[0].categoryName = label;
+                        d.categories[0].displayName = label;
                     }
                 }
                 return d;

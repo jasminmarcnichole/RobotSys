@@ -21,7 +21,7 @@ from train_waste import (
     read_json, validate_dataset, validate_output, validate_training_use, write_json_report,
 )
 
-NAMES = [CLASSES[index] for index in (1, 2, 3, 4)]
+NAMES = [CLASSES[index] for index in (1, 2, 3, 4, 5, 6)]
 SETTINGS = {"worker_score_threshold": 0.2, "ui_score_threshold": 0.5, "max_results": 10, "iou": 0.5}
 ROOT = Path(__file__).resolve().parents[2]
 os.environ["YOLO_CONFIG_DIR"] = str(ROOT / "storage/app/private/waste-training/yolo-settings")
@@ -55,7 +55,7 @@ def verify_names(names) -> None:
     else:
         raise TrainingError("Custom model label names are missing or invalid.")
     if actual != NAMES:
-        raise TrainingError("Use custom waste weights with the four canonical labels, not generic COCO weights.")
+        raise TrainingError("Use custom waste weights with the six canonical labels, not generic COCO weights.")
 
 
 def verify_converted_boxes(labels: dict, folder: Path) -> None:
@@ -224,7 +224,7 @@ def evaluate(args) -> dict:
             x1, y1, x2, y2 = box.xyxy[0].tolist()
             x1, x2 = max(0, x1), min(image["width"], x2)
             y1, y2 = max(0, y1), min(image["height"], y2)
-            if category not in range(4) or x2 <= x1 or y2 <= y1:
+            if category not in range(len(NAMES)) or x2 <= x1 or y2 <= y1:
                 raise TrainingError("YOLO returned an invalid class or bounding box.")
             predictions.append({"image_id": image["id"], "category_id": category + 1, "label": NAMES[category],
                                 "bbox": [x1, y1, x2 - x1, y2 - y1], "score": float(box.conf.item())})
@@ -256,7 +256,7 @@ def validate_predictions(report: dict, labels: dict) -> None:
             raise TrainingError("YOLO predictions must be objects.")
         image, category = images.get(row.get("image_id")), row.get("category_id")
         bbox, score = row.get("bbox"), row.get("score")
-        if (not image or not integer(row.get("image_id")) or not integer(category) or category not in (1, 2, 3, 4) or row.get("label") != CLASSES[category]
+        if (not image or not integer(row.get("image_id")) or not integer(category) or category not in (1, 2, 3, 4, 5, 6) or row.get("label") != CLASSES[category]
                 or not finite_number(score) or not 0.2 <= score <= 1 or not isinstance(bbox, list) or len(bbox) != 4
                 or any(not finite_number(value) for value in bbox)):
             raise TrainingError("YOLO prediction identity, score, or coordinates are invalid.")

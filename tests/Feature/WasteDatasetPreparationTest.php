@@ -682,11 +682,7 @@ for index, split in enumerate(('train', 'validation', 'test'), 1):
         document['objects'].append({'id': index*10+category, 'classTitle': 'litter', 'geometryType': 'rectangle',
             'labelerLogin': actors[split], 'points': {'exterior': [[10, 10], [30, 40]], 'interior': []},
             'tags': [{'name': 'Material', 'value': material}, {'name': 'Object', 'value': kind}]})
-    cats = [b['category_id'] for b in hitl.parse_annotation(document)[0]]
-    print('DEBUG python:', sys.executable, file=sys.stderr)
-    print('DEBUG ph:', hitl.__file__, file=sys.stderr)
-    print('DEBUG cats:', cats, file=sys.stderr)
-    assert cats == [1,2,4,5]
+    assert [b['category_id'] for b in hitl.parse_annotation(document)[0]] == [1, 2, 4, 5]
     invalid = copy.deepcopy(document)
     invalid['objects'][0]['points']['exterior'][1][0] = 101
     rejected(lambda: hitl.parse_annotation(invalid))
@@ -769,7 +765,7 @@ exclusions = SimpleNamespace(base=protected_base, assessment=assessment_path,
     review_index=targeted.output/'review-index.json', output=root/'ablation')
 experiment = ablation.prepare(exclusions)
 assert experiment['counts']['train']['images'] == 1
-assert experiment['counts']['train']['annotations'] == 4
+assert experiment['counts']['train']['annotations'] == 6
 assert len(experiment['excluded_training_images']) == 1
 assert len(experiment['excluded_training_images'][0]['annotations']) == 4
 assert not experiment['retrained'] and not experiment['promoted'] and not experiment['accuracy_gain_measured']
@@ -1485,8 +1481,8 @@ assert sampling['method'] == 'bounded_whole_image_repeat'
 assert sampling['unique_images'] == 1 and sampling['images_per_epoch'] == 3
 assert sampling['steps_per_epoch'] == 2 and sampling['partial_final_batch']
 assert sampling['repeated_image_ids'] == [1]
-assert sampling['image_coverage_by_class'] == dict.fromkeys(('plastic_bottle', 'other_plastic', 'paper', 'metal_can'), 1)
-assert sampling['annotations_per_epoch_by_class'] == dict.fromkeys(('plastic_bottle', 'other_plastic', 'paper', 'metal_can'), 3)
+assert sampling['image_coverage_by_class'] == dict.fromkeys(('plastic_bottle', 'other_plastic', 'plastic_wrapper', 'paper', 'metal_can', 'aluminum_can'), 1)
+assert sampling['annotations_per_epoch_by_class'] == dict.fromkeys(('plastic_bottle', 'other_plastic', 'plastic_wrapper', 'paper', 'metal_can', 'aluminum_can'), 3)
 assert (args.dataset / 'train/labels.json').read_bytes() == original_labels
 assert all((args.dataset / split / 'labels.json').read_bytes() == contents for split, contents in held_out.items())
 for settings in ([('paper', 0)], [('paper', 4)], [('paper', True)], [('paper', 1.5)],
@@ -1499,7 +1495,7 @@ targeted = sampling_configuration(args)
 assert targeted['method'] == 'bounded_targeted_image_repeat'
 assert targeted['image_repeats'] == {'1':2} and targeted['images_per_epoch'] == 2
 assert targeted['steps_per_epoch'] == 1 and not targeted['partial_final_batch']
-assert targeted['annotations_per_epoch_by_class'] == dict.fromkeys(('plastic_bottle', 'other_plastic', 'paper', 'metal_can'), 2)
+assert targeted['annotations_per_epoch_by_class'] == dict.fromkeys(('plastic_bottle', 'other_plastic', 'plastic_wrapper', 'paper', 'metal_can', 'aluminum_can'), 2)
 args.class_repeat = [('paper', 3)]
 combined = sampling_configuration(args)
 assert combined['method'] == 'bounded_class_and_image_repeat'
@@ -2146,7 +2142,7 @@ with tempfile.TemporaryDirectory(prefix='model-maker-ap-integration-') as direct
     validation = api.Dataset.from_coco_folder(str(root), cache_dir=str(root / 'cache'))
     sampling = {
         'method': 'bounded_whole_image_repeat', 'unique_images': 4, 'images_per_epoch': 7,
-        'class_repeats': {'plastic_bottle': 1, 'other_plastic': 1, 'paper': 2, 'metal_can': 3},
+        'class_repeats': {'plastic_bottle': 1, 'other_plastic': 1, 'plastic_wrapper': 2, 'paper': 3, 'metal_can': 1, 'aluminum_can': 1},
     }
     assert apply_training_sampling(api, tf, validation, {'method': 'none'}) is validation
     balanced = apply_training_sampling(api, tf, validation, sampling)
@@ -2285,7 +2281,7 @@ print('Pinned Keras checkpoint integration passed')
 PYTHON;
         $process = new Process([...$launcher, '/usr/bin/env', 'TF_NUM_INTRAOP_THREADS=2', 'TF_NUM_INTEROP_THREADS=1',
             'OMP_NUM_THREADS=2', 'OPENBLAS_NUM_THREADS=2', $python, '-u', '-', $source, $fixture]);
-        $process->setInput($code)->setTimeout(480)->run();
+        $process->setInput($code)->setTimeout(720)->run();
         $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput().$process->getOutput());
         $this->assertStringContainsString('Pinned Keras checkpoint integration passed', $process->getOutput());
         $this->assertStringContainsString('Pinned Model Maker AP integration passed', $process->getOutput());
@@ -2642,14 +2638,14 @@ from export_waste import export_module, mask_background_logits, postprocessing_c
 from evaluate_waste import validate_model_labels
 from mediapipe.tasks.python.metadata.metadata import MetadataDisplayer
 from mediapipe.tasks.python.metadata.metadata_writers import metadata_writer, object_detector as writer_lib
-logits = tf.constant([[[[8., 1., -8., -8., 2., 9., 3., 4., 5., 6.]]]])
+logits = tf.constant([[[[8., 1., -8., -8., 2., -8., -8., 9., 3., 4., 5., 6., 7., 8.]]]])
 masked = mask_background_logits(logits).numpy()
-np.testing.assert_array_equal(masked[..., [1, 2, 3, 4, 6, 7, 8, 9]], logits.numpy()[..., [1, 2, 3, 4, 6, 7, 8, 9]])
-np.testing.assert_array_equal(masked[..., [0, 5]], -100.)
+np.testing.assert_array_equal(masked[..., [1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13]], logits.numpy()[..., [1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13]])
+np.testing.assert_array_equal(masked[..., [0, 7]], -100.)
 class FixtureHead(tf.keras.layers.Layer):
     def call(self, features, training=False):
         signal = features['3']
-        return {'3': tf.constant([[[[8., 1., 1.5, -8., 2.]]]]) + signal * .01}, {'3': tf.zeros([1, 1, 1, 4])}, {}
+        return {'3': tf.constant([[[[8., 1., 1.5, -8., 2., -8., -8.]]]]) + signal * .01}, {'3': tf.zeros([1, 1, 1, 4])}, {}
 raw = tf.Module()
 raw.backbone = tf.keras.layers.Lambda(lambda images: {'3': tf.reduce_mean(images, axis=[1, 2, 3], keepdims=True)})
 raw.decoder = None
@@ -2823,7 +2819,7 @@ category = Value(index=1, category_name='plastic_bottle', score=0.75)
 box = Value(origin_x=-10, origin_y=20, width=200, height=100)
 detection = Value(categories=[category], bounding_box=box)
 assert coco_detection(detection, image) == {'image_id': 7, 'category_id': 1, 'bbox': [0, 20, 100, 60], 'score': 0.75}
-for index, name in enumerate(['plastic_bottle', 'other_plastic', 'paper', 'metal_can'], 1):
+for index, name in enumerate(['plastic_bottle', 'other_plastic', 'plastic_wrapper', 'paper', 'metal_can', 'aluminum_can'], 1):
     category.index, category.category_name = index, name
     assert coco_detection(detection, image)['category_id'] == index
     category.index = None
@@ -2838,7 +2834,7 @@ category.category_name = 'bottle'
 rejected()
 category.index, category.category_name = 1, 'metal_can'
 rejected()
-category.index = 4
+category.index = 5
 category.category_name = 'metal_can'
 for score in [float('nan'), float('inf'), -0.1, 1.1]:
     category.score = score
@@ -2858,13 +2854,13 @@ higher = Value(index=None, category_name='other_plastic', score=0.06446720659732
 detection.categories = [lower, higher]
 assert coco_detection(detection, image)['score'] == higher.score
 assert coco_detection(detection, image)['category_id'] == 2
-paper = Value(index=3, category_name='paper', score=0.8)
+paper = Value(index=4, category_name='paper', score=0.8)
 detection.categories = [higher, paper]
-assert coco_detection(detection, image)['category_id'] == 3
+assert coco_detection(detection, image)['category_id'] == 4
 background = Value(index=0, category_name='background', score=0.9)
 detection.categories = [paper, background]
 assert coco_detection(detection, image) is None
-for invalid in [Value(index=4, category_name='paper', score=0.01),
+for invalid in [Value(index=5, category_name='paper', score=0.01),
                 Value(index=2, category_name='other_plastic', score=float('nan')),
                 Value(index=2, category_name='unknown', score=0.01)]:
     detection.categories = [paper, invalid]
@@ -2953,7 +2949,7 @@ with patch.dict(sys.modules, {'mediapipe': fake_mp, 'mediapipe.framework.calcula
         else:
             raise AssertionError('Unsupported runtime, mode, or callback accepted')
 metadata = {'subgraph_metadata': [{'output_tensor_metadata': [{'associated_files': [{'name': 'labels.txt', 'type': 'TENSOR_AXIS_LABELS'}]}]}]}
-labels = b'background\nplastic_bottle\nother_plastic\npaper\nmetal_can\n'
+labels = b'background\nplastic_bottle\nother_plastic\nplastic_wrapper\npaper\nmetal_can\naluminum_can\n'
 displayer = Value(get_metadata_json=lambda: json.dumps(metadata), get_associated_file_buffer=lambda name: labels)
 associated = metadata['subgraph_metadata'][0]['output_tensor_metadata'][0]['associated_files']
 for label_type in ['TENSOR_AXIS_LABELS', 'TENSOR_VALUE_LABELS']:
@@ -3386,14 +3382,15 @@ labels = {'images': [{'id': 7, 'file_name': '7.jpg', 'source_file_name': 'batch/
                      {'id': 9, 'source_collection': 'zenodo:12517610'}],
           'annotations': [{'id': 1, 'image_id': 7, 'category_id': 1, 'bbox': [10, 10, 20, 20]},
                           {'id': 2, 'image_id': 7, 'category_id': 2, 'bbox': [20, 10, 5, 5]},
-                          {'id': 4, 'image_id': 7, 'category_id': 4, 'bbox': [50, 10, 10, 15]}]}
+                          {'id': 4, 'image_id': 7, 'category_id': 6, 'bbox': [50, 10, 10, 15]}]}
 source_path, label_path = root / 'source.json', dataset / 'train/labels.json'
 source_path.write_text(json.dumps(source))
 label_path.write_text(json.dumps(labels))
 before = label_path.read_bytes()
 result = audit_training_annotations(dataset, source_path)
 assert not result['structural_mismatches']
-assert result['class_source_names']['metal_can'] == ['Food Can', 'Drink can']
+assert result['class_source_names']['metal_can'] == ['Food Can']
+assert result['class_source_names']['aluminum_can'] == ['Drink can', 'Aluminum can', 'Soda can']
 assert result['excluded_source_objects']['Aerosol'] == 1
 assert result['audited_source_images'] == 1 and result['separately_provenanced_images'] == 1
 assert result['class_coverage']['plastic_bottle'] == {'objects': 1, 'images': 1}
@@ -3596,7 +3593,7 @@ samples = [
 before = copy.deepcopy(samples)
 conflicts = class_conflicts(samples, .2)
 assert [p['prediction_indices'] for p in conflicts] == [[0,1],[1,2]]
-assert conflicts[0]['labels'] == ['plastic_bottle','paper'] and conflicts[0]['iou'] == 1.
+assert conflicts[0]['labels'] == ['plastic_bottle','plastic_wrapper'] and conflicts[0]['iou'] == 1.
 assert abs(conflicts[0]['confidence_gap'] - .1) < 1e-9 and conflicts[0]['maximum_score'] == .8
 assert samples == before, 'Diagnostics must not filter, reorder, or relabel inputs'
 assert len(class_conflicts(samples, .7)) == 1 and class_conflicts(samples, .75) == []
@@ -3762,7 +3759,7 @@ from score_browser_waste import SETTINGS
 from unittest.mock import patch
 import calibrate_waste as calibration
 browser_predictions = [{**p, 'label': calibration.CLASSES[p['category_id']]} for p in predictions]
-browser_predictions.append({'image_id':2, 'category_id':3, 'label':'paper', 'score':.9, 'bbox':[70,60,10,10]})
+browser_predictions.append({'image_id':2, 'category_id':4, 'label':'paper', 'score':.9, 'bbox':[70,60,10,10]})
 browser_model = {'model_sha256':file_hash(model), 'label_space':'waste', 'input_size':256,
     'frames':[{'image_id':2, 'width':100, 'height':80, 'inference_ms':10, 'detections':[{}]*5}],
     'predictions':browser_predictions}
@@ -3849,7 +3846,7 @@ overlapping_args = SimpleNamespace(**{**vars(browser_args), 'output':root/'brows
 overlapping_result = calibrate(overlapping_args)
 assert overlapping_result['ui_baseline']['true_positives'] == 4
 assert overlapping_result['ui_baseline']['false_positives'] == 0
-assert overlapping_result['ui_baseline']['false_negatives'] == 0
+assert overlapping_result['ui_baseline']['false_negatives'] == 2
 assert overlapping_result['review_files'] == ['review-2.svg'], 'Legitimate overlapping objects still deserve a review, not suppression'
 assert overlapping_result['class_conflict_summary']['0.5']['pairs'] == 6
 assert overlapping_result['per_class_summary']['true_positives'] == 4

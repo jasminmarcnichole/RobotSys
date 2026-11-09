@@ -53,7 +53,7 @@ def validate_snapshot(root: Path, *, require_review: bool = True) -> dict[str, A
         image_id = image.get("id")
         selected = [item for item in annotations if item.get("image_id") == image_id]
         if (not integer(image_id) or image.get("file_name") != f"{image_id}.jpg" or len(selected) != 1
-                or selected[0].get("category_id") not in (1, 2, 3, 4)
+                or selected[0].get("category_id") not in (1, 2, 4, 5)
                 or image.get("source_collection") != COLLECTION
                 or source_split(image.get("group_id", "").split(":")[-1]) != "train"):
             raise TrainingError("Diagnostic selection contains a held-out, unsupported, or ambiguous image.")
@@ -63,7 +63,7 @@ def validate_snapshot(root: Path, *, require_review: bool = True) -> dict[str, A
         hashes[str(image_id)] = file_hash(path)
         counts[CLASSES[selected[0]["category_id"]]] += 1
     if (hashes != summary.get("image_sha256") or len(set(hashes.values())) != len(images)
-            or counts != Counter(dict.fromkeys(tuple(CLASSES.values())[1:], per_class))):
+            or counts != Counter(dict.fromkeys((CLASSES[key] for key in (1, 2, 4, 5)), per_class))):
         raise TrainingError("Diagnostic photo hashes or class coverage changed.")
     if require_review:
         review = read_json(root, root / "review.json")
@@ -98,7 +98,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
             or not set(excluded).issubset({image["id"] for image in labels["images"]})):
         raise TrainingError("Diagnostic exclusions must name at most 20 unique training-image IDs.")
     selected = []
-    for category in (1, 2, 3, 4):
+    for category in (1, 2, 4, 5):
         candidates = []
         for image in labels["images"]:
             boxes = [item for item in labels["annotations"] if item["image_id"] == image["id"]]
@@ -181,8 +181,8 @@ def evaluate_checkpoint(model: Any, spec: Any, dataset: Path, output: Path) -> d
     for interpreter in (raw, regular):
         interpreter.allocate_tensors()
     outputs = {int(item["shape"][-1]): item for item in raw.get_output_details()}
-    if set(outputs) != {4, 5}:
-        raise TrainingError("Expected raw box offsets and five class scores.")
+    if set(outputs) != {4, len(CLASSES)}:
+        raise TrainingError("Expected raw box offsets and seven class scores.")
     predictions = {"keras_native": [], "tflite_regular_exact_input": []}
     differences = []
     for image in labels["images"]:
@@ -196,10 +196,10 @@ def evaluate_checkpoint(model: Any, spec: Any, dataset: Path, output: Path) -> d
         raw.invoke()
         levels = sorted(native["box_outputs"], key=int)
         expected_boxes = tf.concat([tf.reshape(native["box_outputs"][key], [1, -1, 4]) for key in levels], axis=1).numpy()
-        expected_scores = tf.sigmoid(tf.concat([tf.reshape(native["cls_outputs"][key], [1, -1, 5]) for key in levels], axis=1)).numpy()
+        expected_scores = tf.sigmoid(tf.concat([tf.reshape(native["cls_outputs"][key], [1, -1, len(CLASSES)]) for key in levels], axis=1)).numpy()
         differences.append({"image_id": image["id"],
             "box_offsets_max_abs_error": float(np.max(np.abs(raw.get_tensor(outputs[4]["index"]) - expected_boxes))),
-            "scores_max_abs_error": float(np.max(np.abs(raw.get_tensor(outputs[5]["index"]) - expected_scores)))})
+            "scores_max_abs_error": float(np.max(np.abs(raw.get_tensor(outputs[len(CLASSES)]["index"]) - expected_scores)))})
         regular.set_tensor(regular.get_input_details()[0]["index"], batch.numpy())
         regular.invoke()
         tensors = [regular.get_tensor(item["index"]).tolist() for item in sorted(regular.get_output_details(), key=lambda item: item["index"])]

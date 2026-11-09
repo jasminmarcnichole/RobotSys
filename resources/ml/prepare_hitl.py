@@ -328,7 +328,7 @@ def review_sheets(args: argparse.Namespace) -> None:
             original = next(obj for obj in document["objects"] if obj["id"] == box["source_object_id"])
             tags = {tag["name"]: tag["value"] for tag in original["tags"] if tag["name"] in ("Material", "Object")}
             index = len(rows)
-            prefix = "cans" if categories == {4} else "objects"
+            prefix = "cans" if categories == {5} else "objects"
             if index % 12 == 0:
                 if canvas is not None:
                     canvas.save(args.output / f"{prefix}-{(index-1)//12+1}.png")
@@ -378,7 +378,7 @@ def approved_image(image: dict[str, Any], path: Path, proof: dict[str, Any] | No
             if (review.get("label") not in ("drink_can", "food_can")
                     or review.get("source_sha256") != entry.get("source_sha256") or not review.get("reviewer")):
                 return False
-    expected = sorted((OLD_TO_NEW[box["category_id"]], tuple(v * image["width" if i % 2 == 0 else "height"] /
+    expected = sorted((box["category_id"], tuple(v * image["width" if i % 2 == 0 else "height"] /
         document["size"]["width" if i % 2 == 0 else "height"] for i, v in enumerate(box["bbox"]))) for box in boxes)
     actual = sorted((a["category_id"], tuple(a["bbox"])) for a in annotations if a.get("image_id") == image["id"])
     if expected != actual:
@@ -476,6 +476,14 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
             excluded.append({"image": candidate["image"], "reason": "Only unused validation-group photos may enter fresh validation"})
             continue
         can_boxes = [box for box in boxes if box["requires_can_review"]]
+        if extend_training and can_boxes and any(
+            reviews.get(str(box["source_object_id"]), {}).get("source_sha256") != candidate["source_sha256"]
+            or reviews.get(str(box["source_object_id"]), {}).get("label") not in ("drink_can", "food_can")
+            or not reviews.get(str(box["source_object_id"]), {}).get("reviewer")
+            for box in can_boxes
+        ):
+            pending.append({"image": candidate["image"], "object_ids": [box["source_object_id"] for box in can_boxes]})
+            continue
         for box in can_boxes:
             review = reviews.get(str(box["source_object_id"]), {})
             if review.get("source_sha256") != candidate["source_sha256"]:
@@ -519,7 +527,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
     if extend_training and not prepared:
         raise ValueError("No new reviewed, nonduplicate training images were available.")
     validation_coverage = {CLASSES[key]: len({a["image_id"] for a in datasets["validation"]["annotations"] if a["category_id"] == key})
-                           for key in (1, 2, 3, 4)}
+                           for key in (1, 2, 4, 5)}
     if refresh_validation and any(count < minimum for count in validation_coverage.values()):
         raise ValueError(f"Fresh validation needs at least {minimum} distinct photos per class after review/filtering: {validation_coverage}")
     protected_splits = ("train", "test") if refresh_validation else ("validation", "test") if extend_training else ()
@@ -546,7 +554,7 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
             write_json(args.output / split / "labels.json", labels)
     write_json(args.output / "hitl-provenance.json", proof)
     summary = {"status": "prepared", "full_dataset": True, "license_verified_images": sum(c["images"] for c in counts.values()),
-        "counts": counts, "added_images": len(prepared), "base": str(args.base), "pending_can_review": [], "excluded": excluded,
+        "counts": counts, "added_images": len(prepared), "base": str(args.base), "pending_can_review": pending, "excluded": excluded,
         "split_policy": ("Fresh unused validation-group photos only; train/test files preserved byte-for-byte; prior validation excluded."
                          if refresh_validation else "Existing train preserved and extended; validation/test files preserved byte-for-byte; only train annotators added."
                          if extend_training else "Base train preserved; fresh HITL validation/test only; annotator groups stay in one split."),

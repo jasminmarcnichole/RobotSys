@@ -100,10 +100,11 @@ def prepare(args: argparse.Namespace) -> dict[str, Any]:
     counts = {}
     for split, labels in datasets.items():
         classes = Counter(a["category_id"] for a in labels["annotations"])
-        if not labels["images"] or any(not classes[key] for key in (1, 2, 3, 4)):
+        required = (1, 2, 4, 5) if all(img.get("source_collection") == COLLECTION for img in labels["images"]) else (1, 2, 3, 4, 5, 6)
+        if not labels["images"] or any(not classes[key] for key in required):
             raise TrainingError("Exclusions would remove required waste-class coverage.")
         counts[split] = {"images": len(labels["images"]), "annotations": len(labels["annotations"]),
-                         "annotations_by_class": {CLASSES[key]: classes[key] for key in (1, 2, 3, 4)}}
+                         "annotations_by_class": {CLASSES[key]: classes[key] for key in (1, 2, 3, 4, 5, 6)}}
     base_hash = dataset_hash(args.base)
     source_hashes = {"assessment": digest(args.assessment), "review_index": digest(args.review_index)}
     protected, retained = {}, {}

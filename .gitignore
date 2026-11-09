@@ -19,6 +19,7 @@
 /storage/*.key
 /storage/pail
 /vendor
+/ArduinoCam/CameraWebServer/wifi_secrets.h
 Homestead.json
 Homestead.yaml
 Thumbs.db

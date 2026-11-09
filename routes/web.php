@@ -100,6 +100,7 @@ Route::middleware(['auth', 'can:access-admin'])
                 ->name('dashboard.robot.log');
 
             Route::post('/robot/command', [RobotCommandController::class, 'store'])
+                ->middleware('throttle:robot-command')
                 ->name('dashboard.robot.command');
 
             Route::get('/robot/commands', [RobotCommandController::class, 'index'])

@@ -120,7 +120,6 @@ class AdminAuthenticationTest extends TestCase
 
     public function test_admin_can_logout(): void
     {
-        $this->withoutMiddleware();
         $admin = User::factory()->admin()->create();
 
         $response = $this->actingAs($admin)->post(route('admin.logout'));
