@@ -380,7 +380,7 @@ export async function benchmark(options) {
                     window.pending.set(id, { accept, reject, timer });
                     window.worker.postMessage({ ...payload, id }, transfer);
                 });
-                await window.request({ type: 'init', modelUrl, inputSize });
+                await window.request({ type: 'init', modelUrl, inputSize, scoreThreshold: 0.2 });
             }, { workerPath: `/build/assets/${inputs.worker}`, modelUrl: `/models/${id}`, inputSize: model.input_size });
             const results = { model_sha256: model.sha256, input_size: model.input_size, label_space: model.label_space,
                 input_geometry: model.input_geometry, input_preprocessing: model.input_preprocessing,
