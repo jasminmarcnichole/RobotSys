@@ -12,28 +12,28 @@
 @endphp
 
 <aside class="app-sidebar" aria-label="Sidebar">
-    <a href="{{ route('robot.dashboard', ['robot_id' => $robotId]) }}" class="flex min-h-16 items-center gap-3 border-b border-zinc-200 px-5">
+    <a href="{{ route('robot.dashboard', ['robot_id' => $robotId]) }}" class="flex min-h-16 items-center gap-3 border-b border-zinc-200/80 px-5">
         <span class="brand-mark size-9 rounded-xl text-xs">RS</span>
-        <span class="text-lg font-semibold">RobotSys<span class="block text-xs font-normal text-zinc-500">Operations console</span></span>
+        <span class="text-base font-semibold tracking-tight text-zinc-950">RobotSys<span class="block text-[11px] font-normal text-zinc-500">Operations console</span></span>
     </a>
-    <nav class="flex flex-col gap-1 px-3 py-6" aria-label="Dashboard pages">
-        <p class="px-3 pb-3 text-xs font-medium text-zinc-500">Workspace</p>
+    <nav class="flex flex-col gap-1 px-3 py-5" aria-label="Dashboard pages">
+        <p class="px-3 pb-2 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">Workspace</p>
         @foreach ($dashboardPages as $pageKey => $page)
             <a href="{{ route($page['route'], ['robot_id' => $robotId]) }}" class="nav-link {{ $activePage === $pageKey ? 'is-active' : '' }}" @if ($activePage === $pageKey) aria-current="page" @endif>
-                <img src="{{ asset('icons/'.($navigationIcons[$pageKey] ?? 'activity').'.svg') }}" class="size-4 shrink-0" alt="" aria-hidden="true">
+                <img src="{{ asset('icons/'.($navigationIcons[$pageKey] ?? 'activity').'.svg') }}" class="size-4 shrink-0 opacity-75" alt="" aria-hidden="true">
                 <span>{{ $page['label'] }}</span>
             </a>
         @endforeach
     </nav>
-    <div class="mt-auto px-3 pb-4">
-        <a href="{{ route('manual') }}" class="nav-link"><img src="{{ asset('icons/circle-help.svg') }}" class="size-4" alt="" aria-hidden="true">Operator manual</a>
+    <div class="mt-auto px-3 pb-3">
+        <a href="{{ route('manual') }}" class="nav-link"><img src="{{ asset('icons/circle-help.svg') }}" class="size-4 opacity-75" alt="" aria-hidden="true">Operator manual</a>
     </div>
-    <div class="border-t border-zinc-200 px-5 py-5">
-        <div class="flex items-center gap-2 text-sm font-medium">
-            <img src="{{ asset('icons/shield-check.svg') }}" class="size-4" alt="" aria-hidden="true">
+    <div class="border-t border-zinc-200/80 bg-zinc-50/60 px-5 py-4">
+        <div class="flex items-center gap-2 text-xs font-semibold text-zinc-800">
+            <img src="{{ asset('icons/shield-check.svg') }}" class="size-4 text-emerald-700" alt="" aria-hidden="true">
             Admin workspace
         </div>
-        <p class="mt-1 break-words text-xs text-zinc-500">{{ auth()->user()?->name ?? 'Administrator' }}</p>
+        <p class="mt-0.5 truncate text-xs text-zinc-500">{{ auth()->user()?->name ?? 'Administrator' }}</p>
     </div>
 </aside>
 

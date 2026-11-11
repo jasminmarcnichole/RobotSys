@@ -1,4 +1,4 @@
-<section id="camera" class="flex flex-col gap-6">
+<section id="camera" class="{{ $activePage === 'camera' ? 'control-panel' : '' }} flex flex-col gap-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-3">
             <h2 class="text-base font-semibold">Camera Detection</h2>
@@ -8,12 +8,12 @@
             </span>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-        <button type="button" class="button button-secondary" data-camera-expand aria-pressed="false"><img src="{{ asset('icons/eye.svg') }}" class="size-4" alt="" aria-hidden="true"><span data-camera-expand-label>Expand view</span></button>
-        <label class="button button-secondary relative cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-emerald-700">
-            <img src="{{ asset('icons/upload.svg') }}" class="size-4" alt="" aria-hidden="true">
-            Upload image
-            <input type="file" id="cameraImageInput" accept="image/jpeg,image/png,image/webp" class="sr-only">
-        </label>
+            <button type="button" class="button button-secondary" data-camera-expand aria-pressed="false"><img src="{{ asset('icons/eye.svg') }}" class="size-4" alt="" aria-hidden="true"><span data-camera-expand-label>Expand view</span></button>
+            <label class="button button-secondary relative cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-emerald-700">
+                <img src="{{ asset('icons/upload.svg') }}" class="size-4" alt="" aria-hidden="true">
+                Upload image
+                <input type="file" id="cameraImageInput" accept="image/jpeg,image/png,image/webp" class="sr-only">
+            </label>
         </div>
     </div>
 
@@ -24,13 +24,15 @@
                 <img id="cameraStream" class="absolute inset-0 hidden size-full object-contain" alt="ESP32-CAM live stream" referrerpolicy="no-referrer">
                 <canvas id="cameraSnapshot" class="absolute inset-0 hidden size-full object-contain" aria-label="Captured camera frame"></canvas>
                 <canvas id="detectionOverlay" class="pointer-events-none absolute inset-0 hidden size-full" aria-hidden="true"></canvas>
-                <div id="cameraPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
-                    <img src="{{ asset('icons/camera.svg') }}" class="size-9 invert opacity-70" alt="" aria-hidden="true">
+                <div id="cameraPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center gap-2.5 px-6 text-center">
+                    <span class="flex size-12 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/15">
+                        <img src="{{ asset('icons/camera.svg') }}" class="size-6 invert opacity-80" alt="" aria-hidden="true">
+                    </span>
                     <p class="text-sm font-medium text-zinc-200">Camera feed is inactive</p>
-                    <span class="text-xs text-zinc-400">No input selected</span>
+                    <span class="text-xs text-zinc-400">Connect a camera or upload a photo to inspect waste</span>
                 </div>
             </div>
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 py-3">
+            <div class="mt-3 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-zinc-200/80 bg-zinc-50/70 p-2.5">
                 <div class="flex flex-wrap gap-2">
                     <button id="startCameraButton" type="button" class="button button-primary">
                         <img src="{{ asset('icons/play.svg') }}" class="size-4 invert" alt="" aria-hidden="true">
@@ -61,12 +63,12 @@
             @endunless
             <p id="cameraMessage" class="message message-neutral mt-3" role="status" aria-live="polite">Camera is ready to connect.</p>
 
-            <details class="mt-5 border-y border-zinc-200" open>
+            <details class="mt-4 rounded-xl border border-zinc-200/80 bg-zinc-50/40 px-4" open>
                 <summary class="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold">
-                    <span class="flex items-center gap-2"><img src="{{ asset('icons/settings-2.svg') }}" class="size-4" alt="" aria-hidden="true">Detection settings</span>
-                    <img src="{{ asset('icons/chevron-down.svg') }}" class="details-chevron size-4" alt="" aria-hidden="true">
+                    <span class="flex items-center gap-2"><img src="{{ asset('icons/settings-2.svg') }}" class="size-4 opacity-75" alt="" aria-hidden="true">Detection settings</span>
+                    <img src="{{ asset('icons/chevron-down.svg') }}" class="details-chevron size-4 opacity-60" alt="" aria-hidden="true">
                 </summary>
-                <div class="grid gap-5 pb-5 sm:grid-cols-2">
+                <div class="grid gap-4 border-t border-zinc-200/70 pt-4 pb-4 sm:grid-cols-2">
                     <div class="field-group sm:col-span-2">
                         <label for="cameraModelSelect" class="field-label">Detection model</label>
                         <select id="cameraModelSelect" class="form-input" aria-describedby="cameraModelWarning">
@@ -74,7 +76,7 @@
                                 <option value="{{ $modelId }}" @selected($modelId === $defaultVisionModel)>{{ $model['name'] }} / {{ $model['inputSize'] }} &times; {{ $model['inputSize'] }}{{ $modelId === 'efficientdet_lite0' ? ' / Faster' : ($modelId === 'efficientdet_lite2' ? ' / General objects' : '') }}</option>
                             @endforeach
                         </select>
-                        <p id="cameraModelWarning" class="mt-2 text-xs leading-6 text-amber-800 {{ $visionModels[$defaultVisionModel]['warning'] ? '' : 'hidden' }}" role="status">{{ $visionModels[$defaultVisionModel]['warning'] }}</p>
+                        <p id="cameraModelWarning" class="mt-1.5 text-xs leading-5 text-amber-800 {{ $visionModels[$defaultVisionModel]['warning'] ? '' : 'hidden' }}" role="status">{{ $visionModels[$defaultVisionModel]['warning'] }}</p>
                     </div>
                     <div class="field-group">
                         <label for="cameraDeviceSelect" class="field-label">Camera input</label>
@@ -89,41 +91,43 @@
                         </div>
                         <input type="range" id="cameraThreshold" min="20" max="90" value="50" step="5" class="min-h-10 w-full accent-emerald-700">
                     </div>
-                    <dl class="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 text-xs sm:col-span-2">
-                        <div><dt class="text-zinc-500">Runtime / model</dt><dd id="cameraActiveModel" class="mt-1 font-medium text-zinc-700">TensorFlow Lite / {{ $visionModels[$defaultVisionModel]['name'] }}</dd></div>
-                        <div><dt class="text-zinc-500">Model status</dt><dd id="cameraModelLabel" class="mt-1 font-medium text-zinc-700" role="status">Not loaded</dd></div>
-                        <div><dt class="text-zinc-500">Preview</dt><dd id="cameraPreviewStatus" class="mt-1 font-medium text-zinc-700" role="status">Inactive</dd></div>
-                        <div><dt class="text-zinc-500">Inference</dt><dd class="mt-1 font-medium tabular-nums text-zinc-700"><span id="cameraInferenceTime">--</span> ms</dd></div>
+                    <dl class="grid grid-cols-2 gap-3 rounded-xl border border-zinc-200/70 bg-white p-3 text-xs sm:col-span-2 sm:grid-cols-4">
+                        <div><dt class="text-zinc-500">Runtime / model</dt><dd id="cameraActiveModel" class="mt-0.5 font-medium text-zinc-800">TensorFlow Lite / {{ $visionModels[$defaultVisionModel]['name'] }}</dd></div>
+                        <div><dt class="text-zinc-500">Model status</dt><dd id="cameraModelLabel" class="mt-0.5 font-medium text-zinc-800" role="status">Not loaded</dd></div>
+                        <div><dt class="text-zinc-500">Preview</dt><dd id="cameraPreviewStatus" class="mt-0.5 font-medium text-zinc-800" role="status">Inactive</dd></div>
+                        <div><dt class="text-zinc-500">Inference</dt><dd class="mt-0.5 font-medium tabular-nums text-zinc-800"><span id="cameraInferenceTime">--</span> ms</dd></div>
                     </dl>
                 </div>
             </details>
         </div>
 
-        <aside class="min-w-0 xl:border-l xl:border-zinc-200 xl:pl-6" aria-labelledby="detection-review-heading">
+        <aside class="min-w-0 xl:border-l xl:border-zinc-200/80 xl:pl-6" aria-labelledby="detection-review-heading">
             <div class="section-heading">
                 <h3 id="detection-review-heading">Detection review</h3>
-                <span class="text-xs text-zinc-500"><span id="cameraObjectCount" class="font-semibold tabular-nums text-zinc-700">0</span> objects</span>
+                <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-600"><span id="cameraObjectCount" class="font-semibold tabular-nums text-zinc-800">0</span> objects</span>
             </div>
-            <div class="field-group mt-4">
-                <label for="cameraObjectSelect" class="field-label">Detected object</label>
-                <select id="cameraObjectSelect" disabled class="form-input">
-                    <option value="">No detected objects</option>
-                </select>
-            </div>
-            <dl class="py-4">
-                <dt class="text-xs text-zinc-500">Selected object</dt>
-                <dd id="cameraObjectLabel" class="mt-2 break-words text-lg font-semibold">Awaiting detection</dd>
-            </dl>
-            <div class="border-b border-zinc-200 pb-5">
-                <div class="flex items-center justify-between gap-3 text-sm">
-                    <span class="text-zinc-600">Object confidence</span>
-                    <span id="cameraConfidenceLabel" class="font-semibold tabular-nums">--</span>
+            <div class="mt-4 rounded-xl border border-zinc-200/80 bg-zinc-50/50 p-4">
+                <div class="field-group">
+                    <label for="cameraObjectSelect" class="field-label">Detected object</label>
+                    <select id="cameraObjectSelect" disabled class="form-input">
+                        <option value="">No detected objects</option>
+                    </select>
                 </div>
-                <div class="progress-track mt-2"><span id="cameraConfidenceBar" class="progress-fill bg-blue-600" style="width: 0%"></span></div>
+                <dl class="mt-3.5 flex items-baseline justify-between gap-2">
+                    <dt class="text-xs text-zinc-500">Selected object</dt>
+                    <dd id="cameraObjectLabel" class="break-words text-sm font-semibold text-zinc-900">Awaiting detection</dd>
+                </dl>
+                <div class="mt-3 border-t border-zinc-200/70 pt-3">
+                    <div class="flex items-center justify-between gap-3 text-xs">
+                        <span class="text-zinc-500">Object confidence</span>
+                        <span id="cameraConfidenceLabel" class="font-semibold tabular-nums text-zinc-800">--</span>
+                    </div>
+                    <div class="progress-track mt-2"><span id="cameraConfidenceBar" class="progress-fill bg-emerald-600" style="width: 0%"></span></div>
+                </div>
             </div>
-            <img id="cameraEvidencePreview" class="mt-5 hidden aspect-video w-full rounded-md border border-zinc-200 bg-zinc-100 object-contain" alt="Frame selected for operator review">
+            <img id="cameraEvidencePreview" class="mt-4 hidden aspect-video w-full rounded-xl border border-zinc-200 bg-zinc-100 object-contain" alt="Frame selected for operator review">
             <button type="button" class="text-link mt-2 text-xs disabled:cursor-not-allowed disabled:opacity-40" data-reviewed-download disabled><img src="{{ asset('icons/arrow-down-to-line.svg') }}" class="size-3.5" alt="" aria-hidden="true">Download review frame</button>
-            <div class="field-group mt-5">
+            <div class="field-group mt-4">
                 <label for="cameraTrashType" class="field-label">Waste category</label>
                 <select id="cameraTrashType" disabled required aria-describedby="cameraCategoryHelp" class="form-input">
                     <option value="" selected disabled>Select material</option>
@@ -140,20 +144,20 @@
                 <img src="{{ asset('icons/check.svg') }}" class="size-4 invert" alt="" aria-hidden="true">
                 <span>Confirm and save</span>
             </button>
-            <section class="mt-8" aria-labelledby="camera-history-heading">
+            <section class="mt-6 border-t border-zinc-200/80 pt-5" aria-labelledby="camera-history-heading">
                 <div class="section-heading">
                     <h3 id="camera-history-heading">Detection History</h3>
-                    <a href="{{ route('robot.dashboard.logs', ['source' => 'laptop_camera', 'robot_id' => $robotId]) }}" class="icon-button" title="View saved camera logs" aria-label="View saved camera logs">
-                        <img src="{{ asset('icons/arrow-right.svg') }}" class="size-4" alt="" aria-hidden="true">
+                    <a href="{{ route('robot.dashboard.logs', ['source' => 'laptop_camera', 'robot_id' => $robotId]) }}" class="icon-button size-8 min-h-8 min-w-8" title="View saved camera logs" aria-label="View saved camera logs">
+                        <img src="{{ asset('icons/arrow-right.svg') }}" class="size-3.5" alt="" aria-hidden="true">
                     </a>
                 </div>
-                <div id="cameraDetectionHistory" class="max-h-80 overflow-y-auto divide-y divide-zinc-200">
+                <div id="cameraDetectionHistory" class="max-h-72 overflow-y-auto divide-y divide-zinc-100">
                     @isset($cameraDetections)
                         @forelse ($cameraDetections as $detection)
                             <div class="detection-history-row" data-detection-id="{{ $detection->id }}">
                                 @if ($detection->camera_snapshot_url)
                                     <a href="{{ $detection->camera_snapshot_url }}" target="_blank" rel="noopener noreferrer" class="shrink-0" aria-label="Open saved detection snapshot">
-                                        <img src="{{ $detection->camera_snapshot_url }}" class="h-12 w-16 rounded-md border border-zinc-200 bg-zinc-100 object-contain" alt="{{ $detection->detected_object_label ?? 'Saved detection' }}" loading="lazy">
+                                        <img src="{{ $detection->camera_snapshot_url }}" class="h-12 w-16 rounded-lg border border-zinc-200 bg-zinc-100 object-contain" alt="{{ $detection->detected_object_label ?? 'Saved detection' }}" loading="lazy">
                                     </a>
                                 @endif
                                 <div class="min-w-0 flex-1">
@@ -161,8 +165,8 @@
                                         <p class="break-words">{{ $detection->detected_object_label ?? 'Reviewed object' }}</p>
                                         <span class="shrink-0 text-xs tabular-nums text-zinc-500">{{ $detection->detection_confidence !== null ? number_format((float) $detection->detection_confidence, 0).'%' : '--' }}</span>
                                     </div>
-                                    <p class="mt-1 break-words text-xs text-zinc-500">{{ $detection->last_detected_trash_type ?? 'Uncategorized' }}</p>
-                                    <p class="mt-1 text-xs text-zinc-500">{{ $detection->created_at?->format('M d, h:i A') }}</p>
+                                    <p class="mt-0.5 break-words text-xs text-zinc-500">{{ $detection->last_detected_trash_type ?? 'Uncategorized' }}</p>
+                                    <p class="mt-0.5 text-xs text-zinc-400">{{ $detection->created_at?->format('M d, h:i A') }}</p>
                                 </div>
                             </div>
                         @empty
@@ -176,26 +180,29 @@
         </aside>
     </div>
 </section>
-    <div class="rounded-lg border border-zinc-200 p-4 mt-6">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-base font-semibold">Onboard Vision (ESP32-S3)</h3>
-            <span id="onboardVisionStatus" class="status-badge bg-zinc-100 text-zinc-600">Offline</span>
+<details class="workspace-panel mt-4 p-4 sm:px-6 sm:py-4">
+    <summary class="flex cursor-pointer list-none items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+            <h3 class="text-sm font-semibold text-zinc-800">Onboard Vision (ESP32-S3)</h3>
+            <span id="onboardVisionStatus" class="status-badge bg-zinc-100 text-zinc-600 ring-zinc-200">Offline</span>
         </div>
-        <div class="grid gap-4 md:grid-cols-2">
-            <div>
-                <img id="onboardVisionImage" src="" alt="Onboard vision frame" class="w-full rounded border border-zinc-200 hidden" />
-                <p id="onboardVisionNoImage" class="text-sm text-zinc-500">No recent frame</p>
+        <img src="{{ asset('icons/chevron-down.svg') }}" class="details-chevron size-4 opacity-60" alt="" aria-hidden="true">
+    </summary>
+    <div class="mt-4 grid gap-4 border-t border-zinc-100 pt-4 md:grid-cols-2">
+        <div>
+            <img id="onboardVisionImage" src="" alt="Onboard vision frame" class="w-full rounded-xl border border-zinc-200 hidden" />
+            <p id="onboardVisionNoImage" class="text-sm text-zinc-500">No recent frame</p>
+        </div>
+        <div>
+            <div class="mb-2 flex items-center justify-between">
+                <p class="text-sm font-medium">Detections</p>
+                <p id="onboardVisionCount" class="text-xs font-medium text-zinc-600">0 objects</p>
             </div>
-            <div>
-                <div class="mb-2">
-                    <p class="text-sm font-medium">Detections</p>
-                    <p id="onboardVisionCount" class="text-sm text-zinc-600">0 objects</p>
-                </div>
-                <div id="onboardVisionDetections" class="space-y-2 text-sm"></div>
-                <div class="mt-3 text-xs text-zinc-500">
-                    <p>Device: <span id="onboardVisionDevice">-</span></p>
-                    <p>Last updated: <span id="onboardVisionTime">-</span></p>
-                </div>
+            <div id="onboardVisionDetections" class="space-y-2 text-sm"></div>
+            <div class="mt-3 flex flex-wrap gap-4 text-xs text-zinc-500">
+                <p>Device: <span id="onboardVisionDevice" class="font-medium text-zinc-700">-</span></p>
+                <p>Last updated: <span id="onboardVisionTime" class="font-medium text-zinc-700">-</span></p>
             </div>
         </div>
     </div>
+</details>

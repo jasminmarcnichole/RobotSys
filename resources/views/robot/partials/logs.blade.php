@@ -13,76 +13,78 @@
             Export CSV
         </a>
     </div>
-    <nav class="flex flex-wrap items-center gap-2" aria-label="Quick activity filters">
-        <span class="mr-1 text-xs font-medium text-zinc-500">Quick range</span>
-        @foreach (['Today' => 0, 'Last 7 days' => 6, 'Last 30 days' => 29] as $label => $days)
-            <a href="{{ route('robot.dashboard.logs', array_merge(collect($filters)->except('page')->all(), ['from' => now()->subDays($days)->toDateString(), 'to' => now()->toDateString()])) }}" class="filter-shortcut">{{ $label }}</a>
-        @endforeach
-        <a href="{{ route('robot.dashboard.logs', collect($filters)->except(['page', 'from', 'to'])->all()) }}" class="filter-shortcut">All time</a>
-    </nav>
-    @if ($hasFilters)
-        <div class="flex flex-wrap gap-2" aria-label="Active activity filters">
-            @foreach (collect($filters)->except('per_page')->filter(fn ($value) => filled($value)) as $key => $value)
-                <a href="{{ route('robot.dashboard.logs', collect($filters)->except([$key, 'page'])->all()) }}" class="filter-chip" aria-label="Remove {{ str_replace('_', ' ', $key) }} filter"><span>{{ str_replace('_', ' ', ucfirst($key)) }}: {{ $value }}</span><span aria-hidden="true">×</span></a>
+    <div class="workspace-panel flex flex-col gap-4">
+        <nav class="flex flex-wrap items-center gap-2" aria-label="Quick activity filters">
+            <span class="mr-1 text-xs font-medium text-zinc-500">Quick range</span>
+            @foreach (['Today' => 0, 'Last 7 days' => 6, 'Last 30 days' => 29] as $label => $days)
+                <a href="{{ route('robot.dashboard.logs', array_merge(collect($filters)->except('page')->all(), ['from' => now()->subDays($days)->toDateString(), 'to' => now()->toDateString()])) }}" class="filter-shortcut">{{ $label }}</a>
             @endforeach
-        </div>
-    @endif
-    @if ($errors->any())
-        <div class="message bg-red-50 text-red-800" role="alert">
-            <p class="font-medium">Check the activity filters.</p>
-            <ul class="mt-1 list-inside list-disc">
-                @foreach ($errors->all() as $error)
-                    <li>{{ $error }}</li>
+            <a href="{{ route('robot.dashboard.logs', collect($filters)->except(['page', 'from', 'to'])->all()) }}" class="filter-shortcut">All time</a>
+        </nav>
+        @if ($hasFilters)
+            <div class="flex flex-wrap gap-2" aria-label="Active activity filters">
+                @foreach (collect($filters)->except('per_page')->filter(fn ($value) => filled($value)) as $key => $value)
+                    <a href="{{ route('robot.dashboard.logs', collect($filters)->except([$key, 'page'])->all()) }}" class="filter-chip" aria-label="Remove {{ str_replace('_', ' ', $key) }} filter"><span>{{ str_replace('_', ' ', ucfirst($key)) }}: {{ $value }}</span><span aria-hidden="true">×</span></a>
                 @endforeach
-            </ul>
-        </div>
-    @endif
-    <form method="GET" action="{{ route('robot.dashboard.logs') }}" class="grid items-end gap-4 border-y border-zinc-200 py-4 sm:grid-cols-2 xl:grid-cols-3">
-        <div class="field-group">
-            <label for="logRobotId" class="field-label">Robot ID</label>
-            <input id="logRobotId" name="robot_id" value="{{ $filterValue('robot_id') }}" placeholder="All robots" list="knownRobots" maxlength="50" class="form-input" aria-invalid="{{ $errors->has('robot_id') ? 'true' : 'false' }}">
-            <datalist id="knownRobots">@foreach ($robotOptions as $option)<option value="{{ $option }}"></option>@endforeach</datalist>
-        </div>
-        <div class="field-group">
-            <label for="logTrashType" class="field-label">Waste category</label>
-            <input id="logTrashType" name="trash_type" value="{{ $filterValue('trash_type') }}" placeholder="All categories" maxlength="100" class="form-input" aria-invalid="{{ $errors->has('trash_type') ? 'true' : 'false' }}">
-        </div>
-        <div class="field-group">
-            <label for="logSource" class="field-label">Source</label>
-            <select id="logSource" name="source" class="form-input">
-                <option value="">All sources</option>
-                <option value="robot_sensor" @selected($filterValue('source') === 'robot_sensor')>Robot telemetry</option>
-                <option value="laptop_camera" @selected($filterValue('source') === 'laptop_camera')>Browser detection</option>
-                <option value="robot_camera" @selected($filterValue('source') === 'robot_camera')>Robot camera</option>
-            </select>
-        </div>
-        <div class="field-group">
-            <label for="logFrom" class="field-label">From date</label>
-            <input id="logFrom" type="date" name="from" value="{{ $filterValue('from') }}" class="form-input" aria-invalid="{{ $errors->has('from') ? 'true' : 'false' }}">
-        </div>
-        <div class="field-group">
-            <label for="logTo" class="field-label">To date</label>
-            <input id="logTo" type="date" name="to" value="{{ $filterValue('to') }}" class="form-input" aria-invalid="{{ $errors->has('to') ? 'true' : 'false' }}">
-        </div>
-        <div class="field-group">
-            <label for="logPerPage" class="field-label">Records per page</label>
-            <select id="logPerPage" name="per_page" class="form-input">
-                @foreach ([15, 25, 50] as $size)
-                    <option value="{{ $size }}" @selected(($filterValue('per_page') ?: '15') === (string) $size)>{{ $size }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div class="flex flex-wrap items-center justify-between gap-3 sm:col-span-2 xl:col-span-3">
-            <span class="text-xs text-zinc-500">Time zone: {{ config('app.timezone') }}</span>
-            <div class="flex items-center gap-2">
-            <button type="submit" class="button button-primary">
-                <img src="{{ asset('icons/search.svg') }}" class="size-4 invert" alt="" aria-hidden="true">
-                Apply filters
-            </button>
-                <a href="{{ route('robot.dashboard.logs') }}" class="button button-secondary">Clear</a>
             </div>
-        </div>
-    </form>
+        @endif
+        @if ($errors->any())
+            <div class="message bg-red-50 text-red-800" role="alert">
+                <p class="font-medium">Check the activity filters.</p>
+                <ul class="mt-1 list-inside list-disc">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+        <form method="GET" action="{{ route('robot.dashboard.logs') }}" class="grid items-end gap-4 border-t border-zinc-100 pt-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div class="field-group">
+                <label for="logRobotId" class="field-label">Robot ID</label>
+                <input id="logRobotId" name="robot_id" value="{{ $filterValue('robot_id') }}" placeholder="All robots" list="knownRobots" maxlength="50" class="form-input" aria-invalid="{{ $errors->has('robot_id') ? 'true' : 'false' }}">
+                <datalist id="knownRobots">@foreach ($robotOptions as $option)<option value="{{ $option }}"></option>@endforeach</datalist>
+            </div>
+            <div class="field-group">
+                <label for="logTrashType" class="field-label">Waste category</label>
+                <input id="logTrashType" name="trash_type" value="{{ $filterValue('trash_type') }}" placeholder="All categories" maxlength="100" class="form-input" aria-invalid="{{ $errors->has('trash_type') ? 'true' : 'false' }}">
+            </div>
+            <div class="field-group">
+                <label for="logSource" class="field-label">Source</label>
+                <select id="logSource" name="source" class="form-input">
+                    <option value="">All sources</option>
+                    <option value="robot_sensor" @selected($filterValue('source') === 'robot_sensor')>Robot telemetry</option>
+                    <option value="laptop_camera" @selected($filterValue('source') === 'laptop_camera')>Browser detection</option>
+                    <option value="robot_camera" @selected($filterValue('source') === 'robot_camera')>Robot camera</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label for="logFrom" class="field-label">From date</label>
+                <input id="logFrom" type="date" name="from" value="{{ $filterValue('from') }}" class="form-input" aria-invalid="{{ $errors->has('from') ? 'true' : 'false' }}">
+            </div>
+            <div class="field-group">
+                <label for="logTo" class="field-label">To date</label>
+                <input id="logTo" type="date" name="to" value="{{ $filterValue('to') }}" class="form-input" aria-invalid="{{ $errors->has('to') ? 'true' : 'false' }}">
+            </div>
+            <div class="field-group">
+                <label for="logPerPage" class="field-label">Records per page</label>
+                <select id="logPerPage" name="per_page" class="form-input">
+                    @foreach ([15, 25, 50] as $size)
+                        <option value="{{ $size }}" @selected(($filterValue('per_page') ?: '15') === (string) $size)>{{ $size }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-3 sm:col-span-2 xl:col-span-3">
+                <span class="text-xs text-zinc-500">Time zone: {{ config('app.timezone') }}</span>
+                <div class="flex items-center gap-2">
+                    <button type="submit" class="button button-primary">
+                        <img src="{{ asset('icons/search.svg') }}" class="size-4 invert" alt="" aria-hidden="true">
+                        Apply filters
+                    </button>
+                    <a href="{{ route('robot.dashboard.logs') }}" class="button button-secondary">Clear</a>
+                </div>
+            </div>
+        </form>
+    </div>
 
     <div class="flex flex-wrap items-center justify-between gap-2 text-sm text-zinc-500">
         <p><strong class="font-semibold text-zinc-800">{{ number_format($logs->total()) }}</strong> {{ $logs->total() === 1 ? 'record' : 'records' }}{{ $hasFilters ? ' matching filters' : '' }}</p>
@@ -92,7 +94,7 @@
     </div>
 
     @if ($logs->isEmpty())
-        <div class="flex flex-col items-center gap-3 border-b border-zinc-200 py-14 text-center">
+        <div class="workspace-panel flex flex-col items-center gap-3 py-14 text-center">
             <img src="{{ asset('icons/clipboard-list.svg') }}" class="size-8 opacity-50" alt="" aria-hidden="true">
             @if ($logs->total() > 0)
                 <p class="font-medium">No records on this page.</p>
@@ -105,7 +107,7 @@
             @endif
         </div>
     @else
-        <div class="table-scroll" role="region" aria-label="Activity logs" tabindex="0">
+        <div class="table-scroll overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-xs" role="region" aria-label="Activity logs" tabindex="0">
             <table class="operations-table min-w-[1180px]">
                 <caption class="sr-only">Robot telemetry and saved camera detections</caption>
                 <thead>

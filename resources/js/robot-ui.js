@@ -17,7 +17,7 @@ export function setPill(element, tone, label) {
     if (!element) {
         return;
     }
-    element.className = `inline-flex items-center gap-2 rounded-md px-2.5 py-1 text-xs font-semibold ring-1 ${tones[tone] ?? tones.secondary}`;
+    element.className = `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${tones[tone] ?? tones.secondary}`;
     element.textContent = label;
 }
 
@@ -25,7 +25,7 @@ export function setMessage(element, message, tone = 'secondary') {
     if (!element) {
         return;
     }
-    element.className = `rounded-md px-3 py-2.5 text-sm ${tones[tone] ?? tones.secondary}`;
+    element.className = `rounded-xl px-3.5 py-2.5 text-sm leading-5 ring-1 ring-inset ${tones[tone] ?? tones.secondary}`;
     element.textContent = message;
 }
 

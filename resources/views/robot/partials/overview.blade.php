@@ -33,22 +33,22 @@
             <p class="mt-1 text-sm font-medium text-zinc-700">Robot telemetry</p>
         </article>
     </div>
-    <div class="grid gap-8 xl:grid-cols-[1.25fr_1fr]">
-        <section aria-labelledby="collection-heading">
+    <div class="grid gap-6 xl:grid-cols-[1.25fr_1fr]">
+        <section aria-labelledby="collection-heading" class="workspace-panel">
             <div class="section-heading"><h2 id="collection-heading">Collection activity</h2><a href="{{ route('robot.dashboard.evaluation', ['robot_id' => $robotId]) }}" class="text-link">Evaluation<img src="{{ asset('icons/arrow-right.svg') }}" class="size-4" alt="" aria-hidden="true"></a></div>
-            <dl class="divide-y divide-zinc-200">
+            <dl class="divide-y divide-zinc-100">
                 <div class="data-row"><dt class="flex items-center gap-3"><span class="size-2 rounded-full bg-emerald-600" aria-hidden="true"></span>Successful pickups</dt><dd id="successful_pickup_count" class="text-lg font-semibold tabular-nums">{{ $successfulPickups }}</dd></div>
                 <div class="data-row"><dt class="flex items-center gap-3"><span class="size-2 rounded-full bg-red-500" aria-hidden="true"></span>Failed pickups</dt><dd id="failed_pickup_count" class="text-lg font-semibold tabular-nums">{{ $failedPickups }}</dd></div>
                 <div class="data-row"><dt class="flex items-center gap-3"><span class="size-2 rounded-full bg-amber-500" aria-hidden="true"></span>Obstacle events</dt><dd id="obstacle_count" class="text-lg font-semibold tabular-nums">{{ $obstacleCount }}</dd></div>
-                <div class="data-row"><dt class="flex items-center gap-3"><img src="{{ asset('icons/wifi.svg') }}" class="size-4" alt="" aria-hidden="true">Telemetry</dt><dd id="wireless_status" class="text-right text-sm font-medium">{{ $wirelessStatus }}</dd></div>
+                <div class="data-row"><dt class="flex items-center gap-3"><img src="{{ asset('icons/wifi.svg') }}" class="size-4 opacity-70" alt="" aria-hidden="true">Telemetry</dt><dd id="wireless_status" class="text-right text-sm font-medium">{{ $wirelessStatus }}</dd></div>
             </dl>
         </section>
-        <section aria-labelledby="operations-heading">
+        <section aria-labelledby="operations-heading" class="workspace-panel">
             <div class="section-heading"><h2 id="operations-heading">Operations</h2><span class="text-xs text-zinc-500">{{ $robotId }}</span></div>
-            <div class="divide-y divide-zinc-200">
-                <a href="{{ route('robot.dashboard.commands', ['robot_id' => $robotId]) }}" class="operation-link"><img src="{{ asset('icons/command.svg') }}" class="size-5" alt="" aria-hidden="true"><span class="flex-1">Robot commands</span><img src="{{ asset('icons/arrow-right.svg') }}" class="size-4" alt="" aria-hidden="true"></a>
-                <a href="{{ route('robot.dashboard.waste', ['robot_id' => $robotId]) }}" class="operation-link"><img src="{{ asset('icons/trash-2.svg') }}" class="size-5" alt="" aria-hidden="true"><span class="flex-1">Waste sorting</span><img src="{{ asset('icons/arrow-right.svg') }}" class="size-4" alt="" aria-hidden="true"></a>
-                <a href="{{ route('robot.dashboard.logs', ['robot_id' => $robotId]) }}" class="operation-link"><img src="{{ asset('icons/clipboard-list.svg') }}" class="size-5" alt="" aria-hidden="true"><span class="flex-1">Activity logs</span><img src="{{ asset('icons/arrow-right.svg') }}" class="size-4" alt="" aria-hidden="true"></a>
+            <div class="divide-y divide-zinc-100">
+                <a href="{{ route('robot.dashboard.commands', ['robot_id' => $robotId]) }}" class="operation-link"><img src="{{ asset('icons/command.svg') }}" class="size-5 opacity-75" alt="" aria-hidden="true"><span class="flex-1">Robot commands</span><img src="{{ asset('icons/arrow-right.svg') }}" class="size-4 opacity-60" alt="" aria-hidden="true"></a>
+                <a href="{{ route('robot.dashboard.waste', ['robot_id' => $robotId]) }}" class="operation-link"><img src="{{ asset('icons/trash-2.svg') }}" class="size-5 opacity-75" alt="" aria-hidden="true"><span class="flex-1">Waste sorting</span><img src="{{ asset('icons/arrow-right.svg') }}" class="size-4 opacity-60" alt="" aria-hidden="true"></a>
+                <a href="{{ route('robot.dashboard.logs', ['robot_id' => $robotId]) }}" class="operation-link"><img src="{{ asset('icons/clipboard-list.svg') }}" class="size-5 opacity-75" alt="" aria-hidden="true"><span class="flex-1">Activity logs</span><img src="{{ asset('icons/arrow-right.svg') }}" class="size-4 opacity-60" alt="" aria-hidden="true"></a>
             </div>
         </section>
     </div>

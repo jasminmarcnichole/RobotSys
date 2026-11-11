@@ -4,9 +4,9 @@
         <span class="text-xs text-zinc-500">{{ $robotId }}</span>
     </div>
 
-    <section aria-labelledby="system-modules-heading">
-        <div class="section-heading"><h3 id="system-modules-heading">System modules</h3><img src="{{ asset('icons/cpu.svg') }}" class="size-4" alt="" aria-hidden="true"></div>
-        <div class="table-scroll" role="region" aria-label="System modules" tabindex="0">
+    <section aria-labelledby="system-modules-heading" class="workspace-panel">
+        <div class="section-heading border-b-0 pb-3"><h3 id="system-modules-heading">System modules</h3><img src="{{ asset('icons/cpu.svg') }}" class="size-4 opacity-70" alt="" aria-hidden="true"></div>
+        <div class="table-scroll rounded-xl border border-zinc-200/80" role="region" aria-label="System modules" tabindex="0">
             <table class="operations-table min-w-[620px]">
                 <thead><tr><th scope="col">Module</th><th scope="col">Current record</th><th scope="col">Workspace</th></tr></thead>
                 <tbody>
@@ -45,17 +45,17 @@
         </div>
     </section>
 
-    <div class="grid gap-8 md:grid-cols-2">
-        <section aria-labelledby="reported-operation-heading">
+    <div class="grid gap-6 md:grid-cols-2">
+        <section aria-labelledby="reported-operation-heading" class="workspace-panel">
             <div class="section-heading"><h3 id="reported-operation-heading">Reported operation</h3></div>
-            <dl class="divide-y divide-zinc-200">
+            <dl class="divide-y divide-zinc-100">
                 <div class="data-row"><dt class="text-zinc-500">Runtime</dt><dd id="operating_duration" class="font-medium tabular-nums">{{ $latestLog ? $formattedOperatingDuration : '--' }}</dd></div>
                 <div class="data-row"><dt class="text-zinc-500">Obstacle events</dt><dd id="obstacle_count" class="font-medium tabular-nums">{{ $obstacleCount }}</dd></div>
             </dl>
         </section>
-        <section aria-labelledby="detection-record-heading">
+        <section aria-labelledby="detection-record-heading" class="workspace-panel">
             <div class="section-heading"><h3 id="detection-record-heading">Latest saved detection</h3></div>
-            <dl class="divide-y divide-zinc-200">
+            <dl class="divide-y divide-zinc-100">
                 <div class="data-row"><dt class="text-zinc-500">Object</dt><dd class="text-right font-medium">{{ ($latestDetection ?? null)?->detected_object_label ?? 'No saved detection' }}</dd></div>
                 <div class="data-row"><dt class="text-zinc-500">Confidence</dt><dd class="font-medium tabular-nums">{{ ($latestDetection ?? null)?->detection_confidence !== null ? number_format($latestDetectionConfidence, 0).'%' : '--' }}</dd></div>
             </dl>

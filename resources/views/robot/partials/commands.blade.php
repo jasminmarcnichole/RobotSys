@@ -1,7 +1,7 @@
-<section id="commands" class="grid gap-8 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-    <section aria-labelledby="command-panel-heading">
+<section id="commands" class="grid gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+    <section aria-labelledby="command-panel-heading" class="{{ $activePage === 'commands' ? 'workspace-panel' : '' }}">
         <div class="section-heading"><h2 id="command-panel-heading">Command Panel</h2><span class="text-xs text-zinc-500">{{ $robotId }}</span></div>
-        <dl class="divide-y divide-zinc-200 text-sm">
+        <dl class="divide-y divide-zinc-100 text-sm">
             <div class="data-row"><dt class="text-zinc-500">Last reported state</dt><dd id="command_reported_state" class="font-medium">{{ $latestStatus }}</dd></div>
             <div class="data-row"><dt class="text-zinc-500">Last telemetry</dt><dd id="command_last_updated" class="text-right font-medium">{{ $lastUpdated }}</dd></div>
         </dl>
@@ -23,9 +23,9 @@
         <p class="mt-3 text-xs leading-5 text-zinc-500">Check command history for acknowledgement and completion from the robot.</p>
     </section>
 
-    <section aria-labelledby="recent-commands-heading">
-        <div class="section-heading"><h3 id="recent-commands-heading">Recent Commands</h3><img src="{{ asset('icons/clipboard-list.svg') }}" class="size-4" alt="" aria-hidden="true"></div>
-        <div id="commandHistory" class="divide-y divide-zinc-200">
+    <section aria-labelledby="recent-commands-heading" class="{{ $activePage === 'commands' ? 'workspace-panel' : '' }}">
+        <div class="section-heading"><h3 id="recent-commands-heading">Recent Commands</h3><img src="{{ asset('icons/clipboard-list.svg') }}" class="size-4 opacity-70" alt="" aria-hidden="true"></div>
+        <div id="commandHistory" class="divide-y divide-zinc-100">
             @forelse ($recentCommands as $command)
                 @php
                     $commandTone = match (strtolower($command->status)) {
