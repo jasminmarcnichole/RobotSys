@@ -3,6 +3,7 @@ export class TensorFlowLiteVision {
         this.modelUrl = modelUrl;
         this.inputSize = inputSize;
         this.labels = labels;
+        this.inferUrl = null;
         this.worker = null;
         this.ready = null;
         this.sequence = 0;
@@ -81,6 +82,47 @@ export class TensorFlowLiteVision {
         await ready;
         if (this.worker !== worker) {
             throw new Error('Detection stopped.');
+        }
+        if (this.inferUrl && typeof canvas?.toDataURL === 'function' && typeof globalThis.fetch === 'function') {
+            try {
+                const csrf = globalThis.document?.querySelector?.('meta[name="csrf-token"]')?.content ?? '';
+                const response = await globalThis.fetch(this.inferUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
+                    },
+                    body: JSON.stringify({ camera_snapshot: canvas.toDataURL('image/jpeg', 0.85) }),
+                });
+                const payload = await response.json().catch(() => null);
+                if (this.worker !== worker) {
+                    throw new Error('Detection stopped.');
+                }
+                if (response.ok && payload?.ok === true && Array.isArray(payload.detections)) {
+                    return {
+                        inferenceMs: Number(payload.inference_ms ?? 0),
+                        detections: payload.detections.map((item) => ({
+                            boundingBox: {
+                                originX: Number(item.bbox?.x ?? 0),
+                                originY: Number(item.bbox?.y ?? 0),
+                                width: Number(item.bbox?.width ?? 0),
+                                height: Number(item.bbox?.height ?? 0),
+                            },
+                            categories: [{
+                                categoryName: String(item.label ?? 'Object'),
+                                score: Number(item.score ?? 0),
+                            }],
+                        })),
+                    };
+                }
+                this.inferUrl = null;
+            } catch (error) {
+                if (error?.message === 'Detection stopped.') {
+                    throw error;
+                }
+                this.inferUrl = null;
+            }
         }
         const bitmap = await createImageBitmap(canvas);
         return this.request({ type: 'detect', bitmap }, [bitmap], 20000, worker);

@@ -89,6 +89,10 @@ Route::middleware(['auth', 'can:access-admin'])
                 ->middleware('throttle:120,1,robot-camera-snapshot')
                 ->name('dashboard.camera.snapshot');
 
+            Route::post('/camera/infer', [CameraDetectionController::class, 'infer'])
+                ->middleware('throttle:240,1,robot-camera-infer')
+                ->name('dashboard.camera.infer');
+
             Route::post('/camera/detections', [CameraDetectionController::class, 'store'])
                 ->middleware('throttle:30,1,robot-camera-save')
                 ->name('dashboard.camera.detections');

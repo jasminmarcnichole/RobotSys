@@ -301,6 +301,139 @@ def score(args) -> dict:
     return result
 
 
+def infer_image_bytes(model, image_bytes: bytes, imgsz: int = 320, conf: float = 0.2) -> dict:
+    import time
+    import cv2
+    import numpy as np
+
+    if not image_bytes:
+        raise TrainingError("Empty image payload.")
+    buffer = np.frombuffer(image_bytes, dtype=np.uint8)
+    image = cv2.imdecode(buffer, cv2.IMREAD_COLOR)
+    if image is None or image.size == 0:
+        raise TrainingError("Unable to decode camera frame.")
+    height, width = image.shape[:2]
+    threshold = max(SETTINGS["worker_score_threshold"], min(0.95, float(conf)))
+    started = time.perf_counter()
+    result = model.predict(
+        source=image,
+        imgsz=imgsz,
+        device="cpu",
+        conf=threshold,
+        iou=SETTINGS["iou"],
+        agnostic_nms=True,
+        max_det=SETTINGS["max_results"],
+        save=False,
+        verbose=False,
+    )[0]
+    inference_ms = round((time.perf_counter() - started) * 1000.0, 1)
+    detections = []
+    for box in result.boxes:
+        cls_index = int(box.cls.item())
+        score_value = float(box.conf.item())
+        x1, y1, x2, y2 = (float(value) for value in box.xyxy[0].tolist())
+        bx = max(0, min(width - 1, round(x1)))
+        by = max(0, min(height - 1, round(y1)))
+        bw = max(1, min(width - bx, round(x2 - x1)))
+        bh = max(1, min(height - by, round(y2 - y1)))
+        detections.append({
+            "label": NAMES[cls_index],
+            "category_id": cls_index + 1,
+            "score": round(score_value, 4),
+            "bbox": {"x": bx, "y": by, "width": bw, "height": bh},
+        })
+    detections.sort(key=lambda item: item["score"], reverse=True)
+    return {
+        "ok": True,
+        "backend": "YOLO26n Calibrated",
+        "inference_ms": inference_ms,
+        "detections": detections,
+    }
+
+
+def serve(args) -> None:
+    import base64
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    import threading
+    import numpy as np
+
+    weights = args.weights.resolve(strict=True)
+    model_sha256 = file_hash(weights)
+    model = yolo_api()(str(weights))
+    verify_names(model.names)
+    warmup = np.zeros((args.imgsz, args.imgsz, 3), dtype=np.uint8)
+    model.predict(
+        source=warmup,
+        imgsz=args.imgsz,
+        device="cpu",
+        conf=SETTINGS["worker_score_threshold"],
+        iou=SETTINGS["iou"],
+        max_det=SETTINGS["max_results"],
+        save=False,
+        verbose=False,
+    )
+    lock = threading.Lock()
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *log_args) -> None:
+            return
+
+        def _send_json(self, status_code: int, payload: dict) -> None:
+            body = json.dumps(payload).encode("utf-8")
+            self.send_response(status_code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self) -> None:
+            if self.path.startswith("/health"):
+                self._send_json(200, {
+                    "ok": True,
+                    "backend": "YOLO26n Calibrated",
+                    "model_sha256": model_sha256,
+                    "names": NAMES,
+                })
+                return
+            self._send_json(404, {"ok": False, "message": "Not found."})
+
+        def do_POST(self) -> None:
+            if not self.path.startswith("/infer"):
+                self._send_json(404, {"ok": False, "message": "Not found."})
+                return
+            length = int(self.headers.get("Content-Length", "0"))
+            if length <= 0 or length > 4_000_000:
+                self._send_json(422, {"ok": False, "message": "Invalid payload size."})
+                return
+            raw = self.rfile.read(length)
+            conf = SETTINGS["worker_score_threshold"]
+            content_type = self.headers.get("Content-Type", "")
+            try:
+                if "application/json" in content_type:
+                    payload = json.loads(raw.decode("utf-8"))
+                    encoded = payload.get("image", "")
+                    if "," in encoded:
+                        encoded = encoded.split(",", 1)[1]
+                    image_bytes = base64.b64decode(encoded)
+                    if "threshold" in payload and finite_number(payload["threshold"]):
+                        conf = float(payload["threshold"])
+                else:
+                    image_bytes = raw
+                with lock:
+                    response = infer_image_bytes(model, image_bytes, imgsz=args.imgsz, conf=conf)
+                response["model_sha256"] = model_sha256
+                self._send_json(200, response)
+            except Exception as error:
+                self._send_json(422, {"ok": False, "message": str(error)})
+
+    server = ThreadingHTTPServer((args.host, args.port), Handler)
+    print(json.dumps({"status": "serving", "host": args.host, "port": args.port, "model_sha256": model_sha256}), flush=True)
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
+
+
 def camera(args) -> None:
     model = yolo_api()(str(args.weights.resolve(strict=True)))
     verify_names(model.names)
@@ -341,6 +474,11 @@ def main(argv=None) -> int:
     live.add_argument("--imgsz", type=positive_int, default=320)
     live.add_argument("--limit", type=int, default=0)
     live.add_argument("--headless", action="store_true")
+    server = commands.add_parser("serve")
+    server.add_argument("--weights", type=Path, required=True)
+    server.add_argument("--host", default="127.0.0.1")
+    server.add_argument("--port", type=positive_int, default=8765)
+    server.add_argument("--imgsz", type=positive_int, default=320)
     try:
         args = parser.parse_args(argv)
         if args.command == "prepare":
@@ -351,6 +489,9 @@ def main(argv=None) -> int:
             result = evaluate(args)
         elif args.command == "score":
             result = score(args)
+        elif args.command == "serve":
+            serve(args)
+            return 0
         else:
             if args.limit < 0:
                 raise TrainingError("Frame limit cannot be negative.")

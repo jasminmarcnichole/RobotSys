@@ -17,6 +17,7 @@ export function setupCamera(dashboard) {
         const model = dashboard.vision.models[modelId];
         const v = new TensorFlowLiteVision(model.url, model.inputSize);
         v.labels = model.labels || null;
+        v.inferUrl = model.backendInfer ? (dashboard.urls?.cameraInfer ?? null) : null;
         return v;
     };
     let vision = createVision();

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\InferCameraDetectionRequest;
 use App\Http\Requests\StoreCameraDetectionRequest;
 use App\Models\RobotLog;
 use App\Services\CameraSnapshotStorage;
@@ -24,6 +25,67 @@ class CameraDetectionController extends Controller
             ->where('robot_id', $robotId)
             ->whereIn('detection_source', ['laptop_camera', 'robot_camera'])
             ->latest()->orderByDesc('id')->limit(8)->get());
+    }
+
+    public function infer(InferCameraDetectionRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+        $parts = explode(',', $validated['camera_snapshot'], 2);
+        $image = base64_decode($parts[1] ?? '', true);
+        $dimensions = is_string($image) ? @getimagesizefromstring($image) : false;
+
+        if (! is_string($image) || $dimensions === false
+            || ! in_array($dimensions['mime'] ?? '', ['image/jpeg', 'image/png', 'image/webp'], true)
+            || $dimensions[0] * $dimensions[1] > 16777216) {
+            return response()->json(['ok' => false, 'message' => 'Camera frame is not a valid image.'], 422);
+        }
+
+        $decodedImage = @imagecreatefromstring($image);
+        if ($decodedImage === false) {
+            return response()->json(['ok' => false, 'message' => 'Camera frame could not be decoded.'], 422);
+        }
+        imagedestroy($decodedImage);
+
+        $baseUrl = config('services.robot.yolo_infer_url');
+        if (! is_string($baseUrl) || ! filter_var($baseUrl, FILTER_VALIDATE_URL)) {
+            return response()->json(['ok' => false, 'message' => 'YOLO26n inference service is not configured.'], 503);
+        }
+
+        $inferUrl = rtrim($baseUrl, '/').'/infer';
+
+        try {
+            $response = Http::connectTimeout(2)
+                ->timeout(5)
+                ->withoutRedirecting()
+                ->withBody($image, $dimensions['mime'])
+                ->post($inferUrl);
+        } catch (ConnectionException) {
+            if (! $this->ensureYoloDaemonRunning($baseUrl)) {
+                return response()->json(['ok' => false, 'message' => 'YOLO26n inference service is unavailable.'], 503);
+            }
+
+            try {
+                $response = Http::connectTimeout(2)
+                    ->timeout(6)
+                    ->withoutRedirecting()
+                    ->withBody($image, $dimensions['mime'])
+                    ->post($inferUrl);
+            } catch (ConnectionException) {
+                return response()->json(['ok' => false, 'message' => 'YOLO26n inference service is unavailable.'], 503);
+            }
+        }
+
+        $payload = $response->json();
+        if (! $response->successful() || ! is_array($payload) || ($payload['ok'] ?? false) !== true || ! is_array($payload['detections'] ?? null)) {
+            return response()->json(['ok' => false, 'message' => 'YOLO26n inference failed.'], 502);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'backend' => $payload['backend'] ?? 'YOLO26n Calibrated',
+            'inference_ms' => (float) ($payload['inference_ms'] ?? 0),
+            'detections' => $payload['detections'],
+        ]);
     }
 
     public function snapshot(): Response|JsonResponse
@@ -99,5 +161,44 @@ class CameraDetectionController extends Controller
         }
 
         return response()->json(['success' => true, 'data' => $log], 201);
+    }
+
+    private function ensureYoloDaemonRunning(string $baseUrl): bool
+    {
+        if (app()->runningUnitTests()) {
+            return false;
+        }
+
+        $weights = config('services.robot.yolo_weights');
+        $python = storage_path('app/private/waste-training/yolo-windows-env/Scripts/python.exe');
+        $script = resource_path('ml/trash_detection.py');
+        $port = (int) (parse_url($baseUrl, PHP_URL_PORT) ?: 8765);
+
+        if (! is_string($weights) || ! is_file($weights) || ! is_file($python) || ! is_file($script)) {
+            return false;
+        }
+
+        $command = sprintf(
+            'start "" /B %s %s serve --weights %s --host 127.0.0.1 --port %d --imgsz 320 >NUL 2>&1',
+            escapeshellarg($python),
+            escapeshellarg($script),
+            escapeshellarg($weights),
+            $port
+        );
+        @pclose(@popen($command, 'r'));
+
+        $healthUrl = rtrim($baseUrl, '/').'/health';
+        for ($attempt = 0; $attempt < 20; $attempt++) {
+            usleep(250000);
+            try {
+                if (Http::connectTimeout(1)->timeout(1)->get($healthUrl)->successful()) {
+                    return true;
+                }
+            } catch (ConnectionException) {
+                continue;
+            }
+        }
+
+        return false;
     }
 }

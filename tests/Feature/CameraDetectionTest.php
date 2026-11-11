@@ -772,6 +772,46 @@ JS;
         $this->runJavaScript($code, 180);
     }
 
+    public function test_yolo_camera_inference_endpoint_returns_calibrated_detections_and_validates_frames(): void
+    {
+        config(['services.robot.yolo_infer_url' => 'http://127.0.0.1:8765']);
+        $image = UploadedFile::fake()->image('frame.jpg', 320, 240)->getContent();
+
+        Http::fake([
+            'http://127.0.0.1:8765/infer' => Http::response([
+                'ok' => true,
+                'backend' => 'YOLO26n Calibrated',
+                'inference_ms' => 42.5,
+                'detections' => [
+                    [
+                        'label' => 'aluminum_can',
+                        'category_id' => 6,
+                        'score' => 0.66,
+                        'bbox' => ['x' => 40, 'y' => 30, 'width' => 80, 'height' => 110],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)
+            ->postJson('/dashboard/api/camera/infer', [
+                'camera_snapshot' => 'data:image/jpeg;base64,'.base64_encode($image),
+            ])
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('backend', 'YOLO26n Calibrated')
+            ->assertJsonPath('detections.0.label', 'aluminum_can')
+            ->assertJsonPath('detections.0.score', 0.66);
+
+        $this->actingAs($admin)
+            ->postJson('/dashboard/api/camera/infer', [
+                'camera_snapshot' => 'data:image/png;base64,'.base64_encode('invalid-bytes'),
+            ])
+            ->assertStatus(422);
+    }
+
     private function runJavaScript(string $code, int $timeout = 30): void
     {
         $node = (new ExecutableFinder)->find('node');

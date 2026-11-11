@@ -36,6 +36,8 @@
         'name' => $model['name'],
         'url' => asset($model['path']),
         'inputSize' => $model['input_size'],
+        'labels' => $model['labels'] ?? null,
+        'backendInfer' => $model['backend_infer'] ?? false,
         'experimental' => $model['experimental'] ?? false,
         'warning' => $model['warning'] ?? '',
     ])->all();
@@ -65,6 +67,7 @@
                 insights: @json(route('dashboard.robot.insights')),
                 cameraSnapshot: @json(config('services.robot.camera_snapshot_url') ? route('dashboard.camera.snapshot') : null),
                 cameraStream: @json(config('services.robot.camera_stream_url')),
+                cameraInfer: @json(route('dashboard.camera.infer')),
                 visionLatest: @json(route('dashboard.vision.latest')),
             },
             vision: {
