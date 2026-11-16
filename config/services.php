@@ -14,7 +14,7 @@ return [
         'yolo_infer_url' => env('ROBOT_YOLO_INFER_URL', 'http://127.0.0.1:8765'),
         'yolo_weights' => env(
             'ROBOT_YOLO_WEIGHTS',
-            storage_path('app/private/waste-training/yolo-experiment-20261110/run-calibrated/weights/best.pt')
+            storage_path('app/private/waste-training/yolo-experiment-20261116/run-all-classes-final/weights/best.pt')
         ),
         'vision_default' => env('ROBOT_VISION_MODEL', 'waste_primary_20261026'),
         'vision_models' => [
