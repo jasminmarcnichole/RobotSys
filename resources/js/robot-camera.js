@@ -312,10 +312,6 @@ export function setupCamera(dashboard) {
 
     async function captureFrame() {
         if (source === 'esp32_camera') {
-            // Wait briefly while the live stream is still establishing its connection
-            if (streamPreviewState === 'connecting') {
-                return null;
-            }
             // 1. If the live MJPEG stream is already active in <img id="cameraStream">,
             // grab the frame directly from streamImage (avoids port 80 /capture vs port 81 /stream camera lockup!)
             if (streamPreviewState === 'live' && streamImage?.complete && streamImage.naturalWidth > 0 && streamImage.naturalHeight > 0) {
@@ -330,20 +326,17 @@ export function setupCamera(dashboard) {
             fetching = controller;
             const timeout = setTimeout(() => controller.abort(), 7000);
             try {
-                // 2. Try direct ESP32-CAM /capture first (http://192.168.4.2/capture has CORS *)
-                let response = null;
-                try {
-                    response = await fetch('http://192.168.4.2/capture?_cb=' + Date.now(), {
-                        mode: 'cors', cache: 'no-store', signal: controller.signal,
-                    });
-                } catch {
-                    response = null;
-                }
-                // 3. Fallback to Laravel proxy snapshot route if direct fetch wasn't used
-                if (!response || !response.ok) {
-                    response = await fetch(dashboard.urls.cameraSnapshot, {
-                        headers: { Accept: 'image/jpeg, application/json' }, cache: 'no-store', signal: controller.signal,
-                    });
+                let response = await fetch(dashboard.urls.cameraSnapshot, {
+                    headers: { Accept: 'image/jpeg, application/json' }, cache: 'no-store', signal: controller.signal,
+                });
+                if (!response.ok && response.status === 503) {
+                    try {
+                        response = await fetch(`http://192.168.4.2/capture?_cb=${Date.now()}`, {
+                            mode: 'cors', cache: 'no-store', signal: controller.signal,
+                        });
+                    } catch {
+                        // Keep the original 503 response when AP-mode fallback is unreachable
+                    }
                 }
                 if (!response.ok) {
                     const result = await response.json().catch(() => null);
@@ -831,10 +824,10 @@ export function setupCamera(dashboard) {
             setText('espCamControlStatus', 'Camera offline or unsupported resolution');
         }
     };
-    document.querySelectorAll('[data-esp-cam-var]').forEach((select) => {
+    document.querySelectorAll?.('[data-esp-cam-var]')?.forEach((select) => {
         select.addEventListener('change', () => sendEspCamSetting(select.dataset.espCamVar, select.value));
     });
-    document.querySelectorAll('[data-esp-cam-toggle]').forEach((checkbox) => {
+    document.querySelectorAll?.('[data-esp-cam-toggle]')?.forEach((checkbox) => {
         checkbox.addEventListener('change', () => sendEspCamSetting(checkbox.dataset.espCamToggle, checkbox.checked ? 1 : 0));
     });
     document.addEventListener('visibilitychange', () => {

@@ -178,14 +178,34 @@ class CameraDetectionController extends Controller
             return false;
         }
 
-        $command = sprintf(
-            'start "" /B %s %s serve --weights %s --host 127.0.0.1 --port %d --imgsz 416 >NUL 2>&1',
-            escapeshellarg($python),
-            escapeshellarg($script),
-            escapeshellarg($weights),
-            $port
-        );
-        @pclose(@popen($command, 'r'));
+        if (PHP_OS_FAMILY === 'Windows') {
+            $psQuote = static fn (string $value): string => "'".str_replace("'", "''", $value)."'";
+            $psScript = sprintf(
+                'Start-Process -FilePath %s -ArgumentList @(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) -WindowStyle Hidden',
+                $psQuote($python),
+                $psQuote($script),
+                $psQuote('serve'),
+                $psQuote('--weights'),
+                $psQuote($weights),
+                $psQuote('--host'),
+                $psQuote('127.0.0.1'),
+                $psQuote('--port'),
+                $psQuote((string) $port),
+                $psQuote('--imgsz'),
+                $psQuote('416'),
+            );
+            $encoded = base64_encode((string) iconv('UTF-8', 'UTF-16LE', $psScript));
+            @pclose(@popen('powershell -NoProfile -NonInteractive -EncodedCommand '.$encoded, 'r'));
+        } else {
+            $command = sprintf(
+                '%s %s serve --weights %s --host 127.0.0.1 --port %d --imgsz 416 >/dev/null 2>&1 &',
+                escapeshellarg($python),
+                escapeshellarg($script),
+                escapeshellarg($weights),
+                $port
+            );
+            @pclose(@popen($command, 'r'));
+        }
 
         $healthUrl = rtrim($baseUrl, '/').'/health';
         for ($attempt = 0; $attempt < 20; $attempt++) {
