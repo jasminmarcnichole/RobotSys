@@ -7,6 +7,7 @@ export class TensorFlowLiteVision {
         this.worker = null;
         this.ready = null;
         this.sequence = 0;
+        this.generation = 0;
         this.requests = new Map();
     }
 
@@ -77,12 +78,7 @@ export class TensorFlowLiteVision {
     }
 
     async detect(canvas) {
-        const ready = this.load();
-        const worker = this.worker;
-        await ready;
-        if (this.worker !== worker) {
-            throw new Error('Detection stopped.');
-        }
+        const generation = this.generation;
         if (this.inferUrl && typeof canvas?.toDataURL === 'function' && typeof globalThis.fetch === 'function') {
             try {
                 const csrf = globalThis.document?.querySelector?.('meta[name="csrf-token"]')?.content ?? '';
@@ -94,9 +90,10 @@ export class TensorFlowLiteVision {
                         ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
                     },
                     body: JSON.stringify({ camera_snapshot: canvas.toDataURL('image/jpeg', 0.85) }),
+                    signal: globalThis.AbortSignal?.timeout?.(4500),
                 });
                 const payload = await response.json().catch(() => null);
-                if (this.worker !== worker) {
+                if (this.generation !== generation) {
                     throw new Error('Detection stopped.');
                 }
                 if (response.ok && payload?.ok === true && Array.isArray(payload.detections)) {
@@ -116,19 +113,24 @@ export class TensorFlowLiteVision {
                         })),
                     };
                 }
-                this.inferUrl = null;
             } catch (error) {
-                if (error?.message === 'Detection stopped.') {
-                    throw error;
+                if (error?.message === 'Detection stopped.' || this.generation !== generation) {
+                    throw new Error('Detection stopped.');
                 }
-                this.inferUrl = null;
             }
+        }
+        const ready = this.load();
+        const worker = this.worker;
+        await ready;
+        if (this.worker !== worker || this.generation !== generation) {
+            throw new Error('Detection stopped.');
         }
         const bitmap = await createImageBitmap(canvas);
         return this.request({ type: 'detect', bitmap }, [bitmap], 20000, worker);
     }
 
     dispose(error = new Error('Detection stopped.')) {
+        this.generation++;
         this.worker?.terminate();
         this.worker = null;
         this.ready = null;

@@ -179,7 +179,7 @@ class CameraDetectionController extends Controller
         }
 
         $command = sprintf(
-            'start "" /B %s %s serve --weights %s --host 127.0.0.1 --port %d --imgsz 320 >NUL 2>&1',
+            'start "" /B %s %s serve --weights %s --host 127.0.0.1 --port %d --imgsz 416 >NUL 2>&1',
             escapeshellarg($python),
             escapeshellarg($script),
             escapeshellarg($weights),
