@@ -67,6 +67,7 @@
                 insights: @json(route('dashboard.robot.insights')),
                 cameraSnapshot: @json(config('services.robot.camera_snapshot_url') ? route('dashboard.camera.snapshot') : null),
                 cameraStream: @json(config('services.robot.camera_stream_url')),
+                robotControl: @json(config('services.robot.control_url', 'http://192.168.4.1')),
                 cameraInfer: @json(route('dashboard.camera.infer')),
                 visionLatest: @json(route('dashboard.vision.latest')),
             },

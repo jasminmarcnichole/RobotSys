@@ -26,7 +26,35 @@ if (dashboard) {
     let readinessTimer;
     let latestDetectionId = dashboard.latestDetection?.id ?? null;
 
+    const robotControlBase = (dashboard.urls?.robotControl || 'http://192.168.4.1').replace(/\/+$/, '');
+
+    async function sendDirectRobotCmd(c) {
+        try {
+            const res = await fetch(`${robotControlBase}/cmd?c=${encodeURIComponent(c)}`, {
+                method: 'GET',
+                mode: 'cors',
+                cache: 'no-store',
+            });
+            const txt = await res.text();
+            setText('directRobotStatus', txt);
+            if (c === 'A') {
+                setPill(document.getElementById('movement_status'), 'success', 'Autonomous Mode (Ultrasonic)');
+                setText('command_reported_state', 'Autonomous Mode (Ultrasonic)');
+            } else if (c === 'M' || c === 'S') {
+                setPill(document.getElementById('movement_status'), c === 'S' ? 'danger' : 'secondary', c === 'S' ? 'Stopped (Manual)' : 'Manual Mode');
+                setText('command_reported_state', c === 'S' ? 'Stopped (Manual)' : 'Manual Mode');
+            }
+            return txt;
+        } catch {
+            setText('directRobotStatus', 'Offline (192.168.4.1)');
+            return null;
+        }
+    }
+
     function robotReady() {
+        if (dashboard.urls?.robotControl) {
+            return true;
+        }
         const age = Date.now() - Date.parse(controlTelemetry?.created_at ?? '');
         return Number.isFinite(age) && age >= 0 && age <= 15000
             && [null, undefined, 'robot_sensor'].includes(controlTelemetry?.detection_source);
@@ -35,16 +63,15 @@ if (dashboard) {
     function updateCommandControls() {
         const ready = robotReady();
         commandButtons.forEach((button) => {
-            button.disabled = !navigator.onLine
-                || (pendingCommands.size > 0 && (button.dataset.command !== 'STOP' || pendingCommands.has('STOP')))
+            button.disabled = (pendingCommands.size > 0 && (button.dataset.command !== 'STOP' || pendingCommands.has('STOP')))
                 || (dashboard.controlApp && button.dataset.command !== 'STOP' && !ready);
         });
         const readiness = document.querySelector('[data-control-readiness]');
         if (readiness) {
-            setMessage(readiness, !navigator.onLine ? 'Offline. Reconnect before sending a command.'
-                : ready ? 'Recent robot telemetry received. START and RESET requests expire after five seconds if not acknowledged.'
-                    : 'Waiting for recent robot telemetry. START and RESET are unavailable; STOP can still be queued.',
-            navigator.onLine && ready ? 'success' : 'warning');
+            setMessage(readiness, ready
+                ? 'Direct Wi-Fi Control active (192.168.4.1). START enables Autonomous Ultrasonic Mode; STOP halts immediately.'
+                : 'Waiting for recent robot telemetry. START and RESET are unavailable; STOP can still be queued.',
+            ready ? 'success' : 'warning');
         }
     }
 
@@ -179,7 +206,7 @@ if (dashboard) {
     }
 
     async function sendCommand(command) {
-        if (!navigator.onLine || (dashboard.controlApp && command !== 'STOP' && !robotReady())) {
+        if (dashboard.controlApp && command !== 'STOP' && !robotReady()) {
             updateCommandControls();
             setMessage(commandMessage, 'Reconnect and wait for recent robot telemetry before sending this command.', 'warning');
             return;
@@ -187,20 +214,28 @@ if (dashboard) {
         if (pendingCommands.has(command) || (pendingCommands.size && command !== 'STOP')) {
             return;
         }
-        if (command === 'RESET' && !window.confirm(`Reset ${dashboard.robotId}?`)) {
+        if (command === 'RESET' && !window.confirm(`Reset ${dashboard.robotId} to Manual Mode?`)) {
             return;
         }
         pendingCommands.add(command);
         updateCommandControls();
         setMessage(commandMessage, `Sending ${command}...`);
         try {
+            // Map START -> Autonomous Ultrasonic Mode ('A'), STOP -> Stop ('S'), RESET -> Manual Mode ('M')
+            const directCode = command === 'START' ? 'A' : (command === 'STOP' ? 'S' : 'M');
+            const espResponse = await sendDirectRobotCmd(directCode);
+
             const result = await requestJson(dashboard.urls.command, {
                 method: 'POST', body: JSON.stringify({ robot_id: dashboard.robotId, command }),
-            });
-            if (!result?.success) {
-                throw new Error('The command could not be queued.');
+            }).catch(() => null);
+
+            if (espResponse) {
+                setMessage(commandMessage, `${command} sent to Main ESP32 (192.168.4.1): ${espResponse}`, 'success');
+            } else if (result?.success) {
+                setMessage(commandMessage, `${command} queued in database (Main ESP32 192.168.4.1 unreachable).`, 'warning');
+            } else {
+                throw new Error('Could not reach Main ESP32 (192.168.4.1) or queue command.');
             }
-            setMessage(commandMessage, `${command} queued. Awaiting acknowledgement from ${dashboard.robotId}.`, 'success');
             refresh();
         } catch (error) {
             setMessage(commandMessage, error.message, 'danger');
@@ -211,6 +246,124 @@ if (dashboard) {
     }
 
     commandButtons.forEach((button) => button.addEventListener('click', () => sendCommand(button.dataset.command)));
+    document.querySelectorAll('[data-direct-drive]').forEach((btn) => {
+        const c = btn.dataset.directDrive;
+        btn.addEventListener('mousedown', () => sendDirectRobotCmd(c));
+        btn.addEventListener('mouseup', () => sendDirectRobotCmd('S'));
+        btn.addEventListener('mouseleave', () => sendDirectRobotCmd('S'));
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); sendDirectRobotCmd(c); });
+        btn.addEventListener('touchend', (e) => { e.preventDefault(); sendDirectRobotCmd('S'); });
+    });
+    document.querySelectorAll('[data-direct-cmd]').forEach((btn) => {
+        btn.addEventListener('click', () => sendDirectRobotCmd(btn.dataset.directCmd));
+    });
+
+    // 6-DOF Arm Live Servo Angle & Pose Calibration Controls (192.168.4.1)
+    const servoRanges = [0, 1, 2, 3, 4, 5].map((ch) => document.querySelector(`[data-servo-range="${ch}"]`));
+    const hasArmCalibration = servoRanges.some(Boolean);
+    if (hasArmCalibration) {
+        const applyArmConfig = (cfg) => {
+            if (!cfg?.ok) {
+                return;
+            }
+            if (Array.isArray(cfg.current)) {
+                cfg.current.forEach((angle, ch) => {
+                    const range = servoRanges[ch];
+                    if (range) {
+                        range.value = String(angle);
+                    }
+                    setText(`armServoValue${ch}`, `${angle}°`);
+                });
+            }
+            if (Array.isArray(cfg.home) && Array.isArray(cfg.front) && Array.isArray(cfg.rear)) {
+                setText(
+                    'armSavedPosesSummary',
+                    `Saved -> Home [${cfg.home.slice(0, 5).join(', ')}] | Front Reach Ch1-4 [${cfg.front.join(', ')}] | Rear Drop Ch1-4 [${cfg.rear.join(', ')}] | Gripper Open ${cfg.gripperOpen}° / Closed ${cfg.gripperClosed}°`
+                );
+            }
+        };
+
+        const fetchArmEndpoint = async (path, statusText) => {
+            if (statusText) {
+                setText('armCalibrationStatus', statusText);
+            }
+            try {
+                const res = await fetch(`${robotControlBase}${path}`, {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'no-store',
+                });
+                const cfg = await res.json();
+                applyArmConfig(cfg);
+                setText('armCalibrationStatus', statusText ? `${statusText.replace('...', '')} OK` : 'Synced');
+                return cfg;
+            } catch {
+                setText('armCalibrationStatus', 'Main ESP32 (192.168.4.1) offline');
+                return null;
+            }
+        };
+
+        let lastServoSentAt = 0;
+        let servoSendTimer = null;
+        const sendServoAngle = (ch, angle, immediate = false) => {
+            const clamped = Math.max(0, Math.min(180, Math.round(Number(angle) || 0)));
+            if (servoRanges[ch]) {
+                servoRanges[ch].value = String(clamped);
+            }
+            setText(`armServoValue${ch}`, `${clamped}°`);
+
+            clearTimeout(servoSendTimer);
+            const now = Date.now();
+            const delay = immediate || (now - lastServoSentAt >= 65) ? 0 : 65;
+            servoSendTimer = setTimeout(() => {
+                lastServoSentAt = Date.now();
+                fetchArmEndpoint(`/servo?ch=${ch}&angle=${clamped}`, `Setting Ch ${ch} -> ${clamped}°...`);
+            }, delay);
+        };
+
+        servoRanges.forEach((range, ch) => {
+            if (!range) {
+                return;
+            }
+            range.addEventListener('input', () => sendServoAngle(ch, range.value, false));
+            range.addEventListener('change', () => sendServoAngle(ch, range.value, true));
+        });
+
+        document.querySelectorAll('[data-servo-step]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const ch = Number(btn.dataset.servoCh);
+                const step = Number(btn.dataset.servoStep);
+                const current = Number(servoRanges[ch]?.value ?? 90);
+                sendServoAngle(ch, current + step, true);
+            });
+        });
+
+        document.querySelectorAll('[data-arm-preview]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const pose = btn.dataset.armPreview;
+                fetchArmEndpoint(`/arm/preview?pose=${encodeURIComponent(pose)}`, `Moving to ${pose}...`);
+            });
+        });
+
+        document.querySelectorAll('[data-arm-save]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const pose = btn.dataset.armSave;
+                fetchArmEndpoint(`/arm/save?pose=${encodeURIComponent(pose)}`, `Saving ${pose} pose...`);
+            });
+        });
+
+        document.getElementById('syncArmConfigBtn')?.addEventListener('click', () => {
+            fetchArmEndpoint('/arm/config', 'Syncing...');
+        });
+
+        document.getElementById('resetArmCalibrationBtn')?.addEventListener('click', () => {
+            if (window.confirm('Reset all 6 arm servo poses to default factory angles?')) {
+                fetchArmEndpoint('/arm/reset', 'Resetting defaults...');
+            }
+        });
+
+        fetchArmEndpoint('/arm/config');
+    }
     document.getElementById('refreshDashboardButton')?.addEventListener('click', refresh);
     document.addEventListener('visibilitychange', () => document.hidden ? clearTimeout(pollTimer) : refresh());
     window.addEventListener('pagehide', () => clearTimeout(pollTimer));

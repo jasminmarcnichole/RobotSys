@@ -21,7 +21,7 @@
         <div class="min-w-0">
             <div class="camera-media">
                 <video id="cameraFeed" class="absolute inset-0 hidden size-full object-contain" autoplay muted playsinline aria-label="Live camera feed"></video>
-                <img id="cameraStream" class="absolute inset-0 hidden size-full object-contain" alt="ESP32-CAM live stream" referrerpolicy="no-referrer">
+                <img id="cameraStream" class="absolute inset-0 hidden size-full object-contain" alt="ESP32-CAM live stream" crossorigin="anonymous" referrerpolicy="no-referrer">
                 <canvas id="cameraSnapshot" class="absolute inset-0 hidden size-full object-contain" aria-label="Captured camera frame"></canvas>
                 <canvas id="detectionOverlay" class="pointer-events-none absolute inset-0 hidden size-full" aria-hidden="true"></canvas>
                 <div id="cameraPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center gap-2.5 px-6 text-center">
@@ -97,6 +97,63 @@
                         <div><dt class="text-zinc-500">Preview</dt><dd id="cameraPreviewStatus" class="mt-0.5 font-medium text-zinc-800" role="status">Inactive</dd></div>
                         <div><dt class="text-zinc-500">Inference</dt><dd class="mt-0.5 font-medium tabular-nums text-zinc-800"><span id="cameraInferenceTime">--</span> ms</dd></div>
                     </dl>
+                    <div class="rounded-xl border border-zinc-200/70 bg-white p-3.5 sm:col-span-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <h4 class="text-xs font-semibold text-zinc-800">ESP32-CAM Live Image Settings (192.168.4.2)</h4>
+                            <span id="espCamControlStatus" class="text-xs text-zinc-500">Ready</span>
+                        </div>
+                        <div class="mt-3 grid gap-3 sm:grid-cols-4">
+                            <div class="field-group">
+                                <label for="espCamFramesize" class="field-label text-xs">Resolution</label>
+                                <select id="espCamFramesize" data-esp-cam-var="framesize" class="form-input text-xs">
+                                    <option value="9">SVGA (800 &times; 600)</option>
+                                    <option value="8" selected>VGA (640 &times; 480)</option>
+                                    <option value="6">HVGA (480 &times; 320)</option>
+                                    <option value="5">QVGA (320 &times; 240)</option>
+                                </select>
+                            </div>
+                            <div class="field-group">
+                                <label for="espCamQuality" class="field-label text-xs">Sharpness / Quality</label>
+                                <select id="espCamQuality" data-esp-cam-var="quality" class="form-input text-xs">
+                                    <option value="6">Ultra Sharp (6)</option>
+                                    <option value="10" selected>High Quality (10)</option>
+                                    <option value="14">Balanced (14)</option>
+                                    <option value="20">Fast Stream (20)</option>
+                                </select>
+                            </div>
+                            <div class="field-group">
+                                <label for="espCamBrightness" class="field-label text-xs">Brightness</label>
+                                <select id="espCamBrightness" data-esp-cam-var="brightness" class="form-input text-xs">
+                                    <option value="2">+2 (Brightest)</option>
+                                    <option value="1">+1 (Bright)</option>
+                                    <option value="0" selected>0 (Normal)</option>
+                                    <option value="-1">-1 (Darker)</option>
+                                    <option value="-2">-2 (Darkest)</option>
+                                </select>
+                            </div>
+                            <div class="field-group">
+                                <label for="espCamContrast" class="field-label text-xs">Contrast</label>
+                                <select id="espCamContrast" data-esp-cam-var="contrast" class="form-input text-xs">
+                                    <option value="2">+2 (High)</option>
+                                    <option value="1" selected>+1 (Crisp)</option>
+                                    <option value="0">0 (Normal)</option>
+                                    <option value="-1">-1 (Soft)</option>
+                                    <option value="-2">-2 (Lowest)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mt-3 flex flex-wrap items-center gap-4 border-t border-zinc-100 pt-2.5 text-xs">
+                            <label class="flex cursor-pointer items-center gap-1.5 font-medium text-zinc-700">
+                                <input type="checkbox" data-esp-cam-toggle="vflip" checked class="size-3.5 accent-emerald-700">
+                                <span>Vertical Flip (V-Flip)</span>
+                            </label>
+                            <label class="flex cursor-pointer items-center gap-1.5 font-medium text-zinc-700">
+                                <input type="checkbox" data-esp-cam-toggle="hmirror" class="size-3.5 accent-emerald-700">
+                                <span>Horizontal Mirror (H-Mirror)</span>
+                            </label>
+                            <a href="http://192.168.4.2" target="_blank" rel="noopener noreferrer" class="ml-auto text-emerald-700 hover:underline">Open full ESP32-CAM panel &rarr;</a>
+                        </div>
+                    </div>
                 </div>
             </details>
         </div>
@@ -123,7 +180,27 @@
                         <span id="cameraConfidenceLabel" class="font-semibold tabular-nums text-zinc-800">--</span>
                     </div>
                     <div class="progress-track mt-2"><span id="cameraConfidenceBar" class="progress-fill bg-emerald-600" style="width: 0%"></span></div>
+                    <div class="mt-3 grid grid-cols-2 gap-2 border-t border-zinc-200/70 pt-2.5 text-xs">
+                        <div>
+                            <span class="text-zinc-500">Arm Aim (S0):</span>
+                            <span id="cameraAimDirection" class="ml-1 font-semibold text-zinc-800">--</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-zinc-500">Sort Bin:</span>
+                            <span id="cameraTargetBin" class="ml-1 font-semibold text-emerald-700">--</span>
+                        </div>
+                    </div>
                 </div>
+            </div>
+            <div class="mt-3 rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-3">
+                <label class="flex cursor-pointer items-center justify-between gap-2 text-xs font-semibold text-zinc-800">
+                    <span>Auto-Grab &amp; Sort when trash detected</span>
+                    <input type="checkbox" id="autoGrabToggle" class="size-4 accent-emerald-700">
+                </label>
+                <button id="grabDetectedWasteButton" type="button" disabled class="button button-secondary mt-2.5 w-full">
+                    <span>Grab &amp; Sort Detected Waste Now</span>
+                </button>
+                <p id="armGrabStatus" class="mt-1.5 text-xs text-zinc-600" role="status">Arm ready (192.168.4.1)</p>
             </div>
             <img id="cameraEvidencePreview" class="mt-4 hidden aspect-video w-full rounded-xl border border-zinc-200 bg-zinc-100 object-contain" alt="Frame selected for operator review">
             <button type="button" class="text-link mt-2 text-xs disabled:cursor-not-allowed disabled:opacity-40" data-reviewed-download disabled><img src="{{ asset('icons/arrow-down-to-line.svg') }}" class="size-3.5" alt="" aria-hidden="true">Download review frame</button>

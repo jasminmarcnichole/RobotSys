@@ -35,7 +35,55 @@ export function setupCamera(dashboard) {
     let previewGeneration = 0;
     let previewTimer = null;
     let streamPreviewState = 'idle';
+    let consecutiveDetections = 0;
+    let lastAutoGrabAt = 0;
     const frameTimeout = 5000;
+    const robotControlBase = (dashboard.urls?.robotControl || 'http://192.168.4.1').replace(/\/+$/, '');
+
+    function getAimDirection(detection, canvas) {
+        if (!detection?.bbox || !canvas?.width) {
+            return 'center';
+        }
+        const centerX = detection.bbox.x + detection.bbox.width / 2;
+        if (centerX < canvas.width / 3) {
+            return 'left';
+        }
+        if (centerX > (canvas.width * 2) / 3) {
+            return 'right';
+        }
+        return 'center';
+    }
+
+    function getTargetBin(detection) {
+        if (material?.value) {
+            return material.value.toLowerCase().includes('plastic') ? 'plastic' : 'general';
+        }
+        const label = String(detection?.label ?? '').toLowerCase();
+        if (label.includes('plastic') || label.includes('bottle') || label.includes('wrapper')) {
+            return 'plastic';
+        }
+        return 'general';
+    }
+
+    async function triggerRobotGrab(detection = selectedDetection(), canvas = lastFrame?.canvas) {
+        if (!detection) {
+            return;
+        }
+        const dir = getAimDirection(detection, canvas);
+        const bin = getTargetBin(detection);
+        setText('armGrabStatus', `Sending grab (aim=${dir.toUpperCase()}, bin=${bin.toUpperCase()})...`);
+        try {
+            const response = await fetch(`${robotControlBase}/grab?dir=${encodeURIComponent(dir)}&bin=${encodeURIComponent(bin)}`, {
+                method: 'GET',
+                mode: 'cors',
+                cache: 'no-store',
+            });
+            const text = await response.text();
+            setText('armGrabStatus', `Robot ESP32: ${text}`);
+        } catch {
+            setText('armGrabStatus', 'Could not reach Main ESP32 (192.168.4.1)');
+        }
+    }
 
     const message = (text, tone = 'secondary') => setMessage(get('cameraMessage'), text, tone);
     const status = (label, tone = 'secondary') => setPill(get('camera_status'), tone, label);
@@ -58,6 +106,7 @@ export function setupCamera(dashboard) {
         setDisabled('stopCameraButton', !source && mode !== 'loading');
         setDisabled('liveDetectionButton', busy || !source || source === 'uploaded_image');
         setDisabled('captureDetectionButton', busy || mode !== 'live' || !selectedDetection());
+        setDisabled('grabDetectedWasteButton', busy || !selectedDetection());
         setDisabled('saveCameraDetectionButton', saving || mode !== 'review' || !selectedDetection() || !material.value || lastFrame?.saved);
         setDisabled('cameraImageInput', busy);
         setDisabled('cameraDeviceSelect', busy || Boolean(source && source !== 'uploaded_image'));
@@ -205,6 +254,17 @@ export function setupCamera(dashboard) {
         get('cameraConfidenceBar').style.width = `${confidence}%`;
         setText('cameraObjectCount', lastFrame?.detections.length ?? 0);
         setText('cameraInferenceTime', lastFrame ? Math.round(lastFrame.inferenceMs) : '--');
+        if (detection && lastFrame?.canvas) {
+            const aim = getAimDirection(detection, lastFrame.canvas);
+            const bin = getTargetBin(detection);
+            const aimDeg = aim === 'left' ? 115 : (aim === 'right' ? 65 : 90);
+            const binDeg = bin === 'plastic' ? 115 : 65;
+            setText('cameraAimDirection', `${aim.toUpperCase()} (${aimDeg}°)`);
+            setText('cameraTargetBin', `REAR ${bin.toUpperCase()} (${binDeg}°)`);
+        } else {
+            setText('cameraAimDirection', '--');
+            setText('cameraTargetBin', '--');
+        }
         if (objectSelect) {
             objectSelect.replaceChildren(...(lastFrame?.detections ?? []).map((item, index) => new Option(`${item.label} (${Math.round(item.score * 100)}%)`, String(index))));
             objectSelect.value = String(selectedIndex);
@@ -252,13 +312,39 @@ export function setupCamera(dashboard) {
 
     async function captureFrame() {
         if (source === 'esp32_camera') {
+            // Wait briefly while the live stream is still establishing its connection
+            if (streamPreviewState === 'connecting') {
+                return null;
+            }
+            // 1. If the live MJPEG stream is already active in <img id="cameraStream">,
+            // grab the frame directly from streamImage (avoids port 80 /capture vs port 81 /stream camera lockup!)
+            if (streamPreviewState === 'live' && streamImage?.complete && streamImage.naturalWidth > 0 && streamImage.naturalHeight > 0) {
+                try {
+                    return makeFrame(streamImage, streamImage.naturalWidth, streamImage.naturalHeight);
+                } catch {
+                    // Fall through to snapshot fetch if canvas is tainted
+                }
+            }
+
             const controller = new AbortController();
             fetching = controller;
             const timeout = setTimeout(() => controller.abort(), 7000);
             try {
-                const response = await fetch(dashboard.urls.cameraSnapshot, {
-                    headers: { Accept: 'image/jpeg, application/json' }, cache: 'no-store', signal: controller.signal,
-                });
+                // 2. Try direct ESP32-CAM /capture first (http://192.168.4.2/capture has CORS *)
+                let response = null;
+                try {
+                    response = await fetch('http://192.168.4.2/capture?_cb=' + Date.now(), {
+                        mode: 'cors', cache: 'no-store', signal: controller.signal,
+                    });
+                } catch {
+                    response = null;
+                }
+                // 3. Fallback to Laravel proxy snapshot route if direct fetch wasn't used
+                if (!response || !response.ok) {
+                    response = await fetch(dashboard.urls.cameraSnapshot, {
+                        headers: { Accept: 'image/jpeg, application/json' }, cache: 'no-store', signal: controller.signal,
+                    });
+                }
                 if (!response.ok) {
                     const result = await response.json().catch(() => null);
                     throw new Error(result?.message ?? 'The ESP32-CAM snapshot is unavailable.');
@@ -350,6 +436,16 @@ export function setupCamera(dashboard) {
                 if (source === 'esp32_camera' && streamPreviewState !== 'live') {
                     showFrame(frame);
                     drawOverlay();
+                }
+                if (lastFrame.detections.length) {
+                    consecutiveDetections++;
+                    if (get('autoGrabToggle')?.checked && consecutiveDetections >= 2 && (Date.now() - lastAutoGrabAt > 6500)) {
+                        lastAutoGrabAt = Date.now();
+                        consecutiveDetections = 0;
+                        triggerRobotGrab(selectedDetection(), frame);
+                    }
+                } else {
+                    consecutiveDetections = 0;
                 }
                 message(lastFrame.detections.length ? `${lastFrame.detections.length} object(s) detected.` : 'No objects above the confidence threshold.');
             }
@@ -679,9 +775,10 @@ export function setupCamera(dashboard) {
             }
             frame.saved = true;
             prependHistory(result.data);
+            triggerRobotGrab(detection, frame.canvas);
             if (saveGeneration === generation && lastFrame === frame) {
                 status('Evidence saved', 'success');
-                message(`${category} observation saved.`, 'success');
+                message(`${category} observation saved & arm grab triggered.`, 'success');
             }
         } catch (error) {
             if (saveGeneration === generation) {
@@ -702,7 +799,12 @@ export function setupCamera(dashboard) {
     get('cameraImageInput')?.addEventListener('change', upload);
     modelSelect?.addEventListener('change', changeModel);
     get('saveCameraDetectionButton')?.addEventListener('click', save);
-    material.addEventListener('change', controls);
+    get('grabDetectedWasteButton')?.addEventListener('click', () => triggerRobotGrab());
+    material.addEventListener('change', () => {
+        updateResult();
+        controls();
+    });
+
     objectSelect?.addEventListener('change', () => {
         selectedIndex = Number(objectSelect.value);
         material.value = '';
@@ -711,6 +813,29 @@ export function setupCamera(dashboard) {
     get('cameraThreshold')?.addEventListener('input', () => {
         setText('cameraThresholdLabel', `${Math.round(threshold() * 100)}%`);
         filterDetections();
+    });
+
+    const sendEspCamSetting = async (variable, value) => {
+        setText('espCamControlStatus', `Applying ${variable}...`);
+        try {
+            const res = await fetch(`http://192.168.4.2/control?var=${encodeURIComponent(variable)}&val=${encodeURIComponent(value)}`, {
+                method: 'GET',
+                mode: 'cors',
+                cache: 'no-store',
+            });
+            if (!res.ok) {
+                throw new Error('Failed');
+            }
+            setText('espCamControlStatus', `Saved (${variable}=${value})`);
+        } catch {
+            setText('espCamControlStatus', 'Camera offline or unsupported resolution');
+        }
+    };
+    document.querySelectorAll('[data-esp-cam-var]').forEach((select) => {
+        select.addEventListener('change', () => sendEspCamSetting(select.dataset.espCamVar, select.value));
+    });
+    document.querySelectorAll('[data-esp-cam-toggle]').forEach((checkbox) => {
+        checkbox.addEventListener('change', () => sendEspCamSetting(checkbox.dataset.espCamToggle, checkbox.checked ? 1 : 0));
     });
     document.addEventListener('visibilitychange', () => {
         if (document.hidden && (mode === 'live' || streamPreviewState === 'live' || streamPreviewState === 'connecting')) {

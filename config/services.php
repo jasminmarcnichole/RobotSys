@@ -11,6 +11,7 @@ return [
         ],
         'camera_snapshot_url' => env('ESP32_CAMERA_SNAPSHOT_URL'),
         'camera_stream_url' => env('ESP32_CAMERA_STREAM_URL'),
+        'control_url' => env('ESP32_ROBOT_CONTROL_URL', 'http://192.168.4.1'),
         'yolo_infer_url' => env('ROBOT_YOLO_INFER_URL', 'http://127.0.0.1:8765'),
         'yolo_weights' => env(
             'ROBOT_YOLO_WEIGHTS',

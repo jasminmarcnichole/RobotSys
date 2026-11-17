@@ -16,6 +16,12 @@ class PreventStaleRobotCommands
      */
     public function handle(Request $request, Closure $next): Response
     {
+        // Allow START, STOP, and RESET commands in Direct Wi-Fi AP mode (192.168.4.1)
+        // even when periodic database telemetry is not active.
+        if (config('services.robot.control_url')) {
+            return $next($request);
+        }
+
         $robotId = $request->input('robot_id') ?? 'ROBOT-001';
 
         if (in_array($request->input('command'), ['START', 'RESET'], true) && is_string($robotId)) {
