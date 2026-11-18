@@ -44,7 +44,7 @@
             </dl>
         </section>
         <section aria-labelledby="operations-heading" class="workspace-panel">
-            <div class="section-heading"><h2 id="operations-heading">Operations</h2><span class="text-xs text-zinc-500">{{ $robotId }}</span></div>
+            <div class="section-heading"><h2 id="operations-heading">Operations</h2></div>
             <div class="divide-y divide-zinc-100">
                 <a href="{{ route('robot.dashboard.commands', ['robot_id' => $robotId]) }}" class="operation-link"><img src="{{ asset('icons/command.svg') }}" class="size-5 opacity-75" alt="" aria-hidden="true"><span class="flex-1">Robot commands</span><img src="{{ asset('icons/arrow-right.svg') }}" class="size-4 opacity-60" alt="" aria-hidden="true"></a>
                 <a href="{{ route('robot.dashboard.waste', ['robot_id' => $robotId]) }}" class="operation-link"><img src="{{ asset('icons/trash-2.svg') }}" class="size-5 opacity-75" alt="" aria-hidden="true"><span class="flex-1">Waste sorting</span><img src="{{ asset('icons/arrow-right.svg') }}" class="size-4 opacity-60" alt="" aria-hidden="true"></a>

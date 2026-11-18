@@ -151,7 +151,7 @@ if (dashboard) {
             title.textContent = command.command;
             const meta = document.createElement('p');
             meta.className = 'mt-1 text-xs text-zinc-500';
-            meta.textContent = `${command.robot_id} / ${new Date(command.created_at).toLocaleTimeString()}`;
+            meta.textContent = new Date(command.created_at).toLocaleTimeString();
             const badge = document.createElement('span');
             setPill(badge, command.status === 'completed' ? 'success' : command.status === 'failed' ? 'danger' : 'secondary', command.status);
             content.append(title, meta);

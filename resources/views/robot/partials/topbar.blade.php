@@ -19,6 +19,7 @@
     <nav class="flex flex-col gap-1 px-3 py-5" aria-label="Dashboard pages">
         <p class="px-3 pb-2 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">Workspace</p>
         @foreach ($dashboardPages as $pageKey => $page)
+            @continue(in_array($pageKey, ['camera', 'commands'], true))
             <a href="{{ route($page['route'], ['robot_id' => $robotId]) }}" class="nav-link {{ $activePage === $pageKey ? 'is-active' : '' }}" @if ($activePage === $pageKey) aria-current="page" @endif>
                 <img src="{{ asset('icons/'.($navigationIcons[$pageKey] ?? 'activity').'.svg') }}" class="size-4 shrink-0 opacity-75" alt="" aria-hidden="true">
                 <span>{{ $page['label'] }}</span>
@@ -46,6 +47,7 @@
             <nav class="mobile-navigation-panel" aria-label="Dashboard pages">
                 <a href="{{ route('robot.dashboard', ['robot_id' => $robotId]) }}" class="mb-3 block px-3 text-lg font-semibold">RobotSys</a>
                 @foreach ($dashboardPages as $pageKey => $page)
+                    @continue(in_array($pageKey, ['camera', 'commands'], true))
                     <a href="{{ route($page['route'], ['robot_id' => $robotId]) }}" class="nav-link {{ $activePage === $pageKey ? 'is-active' : '' }}" @if ($activePage === $pageKey) aria-current="page" @endif>
                         <img src="{{ asset('icons/'.($navigationIcons[$pageKey] ?? 'activity').'.svg') }}" class="size-4 shrink-0" alt="" aria-hidden="true">
                         <span>{{ $page['label'] }}</span>
@@ -60,7 +62,6 @@
     </div>
     <div class="flex min-w-0 items-center gap-2 sm:gap-4">
         <button type="button" class="workspace-search-button" data-workspace-search-open aria-label="Search workspace" aria-haspopup="dialog" aria-controls="workspaceSearch"><img src="{{ asset('icons/search.svg') }}" class="size-4" alt="" aria-hidden="true"><span class="hidden xl:inline">Search workspace</span><kbd class="hidden text-[10px] text-zinc-400 xl:inline">Ctrl K</kbd></button>
-        <span class="robot-identity max-w-32 truncate font-mono text-xs font-medium text-zinc-600 sm:max-w-52">{{ $robotId }}</span>
         <span id="movement_status" class="status-badge {{ $statusToneClass }}" role="status">
             <span class="size-1.5 shrink-0 rounded-full bg-current" aria-hidden="true"></span>
             <span data-status-label>{{ $latestStatus }}</span>

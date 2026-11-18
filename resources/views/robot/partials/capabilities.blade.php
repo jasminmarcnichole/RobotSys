@@ -1,7 +1,6 @@
 <section id="capabilities" class="flex flex-col gap-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
         <h2 class="text-base font-semibold">System Capability Map</h2>
-        <span class="text-xs text-zinc-500">{{ $robotId }}</span>
     </div>
 
     <section aria-labelledby="system-modules-heading" class="workspace-panel">

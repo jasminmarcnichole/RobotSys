@@ -1,6 +1,6 @@
 <section id="commands" class="grid gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
     <section aria-labelledby="command-panel-heading" class="{{ $activePage === 'commands' ? 'workspace-panel' : '' }}">
-        <div class="section-heading"><h2 id="command-panel-heading">Command Panel</h2><span class="text-xs text-zinc-500">{{ $robotId }}</span></div>
+        <div class="section-heading"><h2 id="command-panel-heading">Command Panel</h2></div>
         <dl class="divide-y divide-zinc-100 text-sm">
             <div class="data-row"><dt class="text-zinc-500">Last reported state</dt><dd id="command_reported_state" class="font-medium">{{ $latestStatus }}</dd></div>
             <div class="data-row"><dt class="text-zinc-500">Last telemetry</dt><dd id="command_last_updated" class="text-right font-medium">{{ $lastUpdated }}</dd></div>
@@ -71,7 +71,7 @@
                 <div class="command-history-row">
                     <div class="min-w-0">
                         <p class="text-sm font-semibold">{{ $command->command }}</p>
-                        <p class="mt-1 break-words text-xs text-zinc-500">{{ $command->robot_id }} <span aria-hidden="true">&middot;</span> {{ $command->created_at?->diffForHumans() }}</p>
+                        <p class="mt-1 break-words text-xs text-zinc-500">{{ $command->created_at?->diffForHumans() }}</p>
                     </div>
                     <span class="status-badge {{ $commandTone }}">{{ $command->status }}</span>
                 </div>

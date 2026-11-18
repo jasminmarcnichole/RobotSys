@@ -101,7 +101,6 @@
 
             <footer class="mt-10 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-200 pt-4 text-xs text-zinc-500">
                 <a href="{{ route('manual') }}" class="portal-footer-link">RobotSys operations <span aria-hidden="true">&middot;</span> Operator manual</a>
-                <span>{{ $robotId }}</span>
             </footer>
         </main>
         @include('robot.partials.workspace-search')
