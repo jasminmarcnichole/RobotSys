@@ -24,7 +24,9 @@ class RobotAppTest extends TestCase
         $this->actingAs(User::factory()->admin()->create())->get(route('robot.dashboard.control'))
             ->assertOk()->assertSee('Control & machine vision', false)
             ->assertSee('Command Panel')->assertSee('Camera Detection')
-            ->assertSee('app.webmanifest')->assertSee('data-app-install', false)
+            ->assertSee('app.webmanifest')->assertSee('data-apk-download', false)
+            ->assertSee('Download Android APK')
+            ->assertDontSee('data-app-install', false)
             ->assertSee('data-control-app', false)
             ->assertSee('compatible ESP32 motor-control firmware');
     }

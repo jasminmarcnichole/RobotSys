@@ -19,7 +19,7 @@
                 <section id="install-app" class="manual-section" aria-labelledby="install-heading">
                     <p class="portal-eyebrow">RobotSys on your device</p><h2 id="install-heading" class="manual-heading">Install the app</h2>
                     <p>Open RobotSys through HTTPS in your device’s browser and sign in. On supported Android or desktop browsers, use <strong>Install app</strong> below or the browser’s installation menu. On iPhone or iPad, use Safari’s Share menu and choose <strong>Add to Home Screen</strong>.</p>
-                    <button type="button" class="button button-primary mt-4" data-app-install hidden><img src="{{ asset('icons/arrow-down-to-line.svg') }}" class="size-4 invert" alt="" aria-hidden="true">Install app</button>
+                    <a href="{{ asset('downloads/robotsys-controller.apk') }}" download="RobotSys-Controller.apk" class="button button-primary mt-4" data-apk-download><img src="{{ asset('icons/arrow-down-to-line.svg') }}" class="size-4 invert" alt="" aria-hidden="true">Download Android APK</a>
                     <p>The installed app opens <strong>Robot app</strong>, with manual START, STOP, and RESET controls alongside machine vision. It uses the same account and camera review flow as the website. Directional steering needs compatible motor-control firmware on the robot.</p>
                     <p>An internet or server connection is required. Commands are not saved for offline replay. START and RESET need recent robot telemetry and expire after five seconds if still pending. STOP requests remain queued until the robot receives them; check command history for acknowledgement.</p>
                 </section>

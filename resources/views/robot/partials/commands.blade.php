@@ -31,22 +31,22 @@
                 <button type="button" data-direct-cmd="A" class="button button-primary min-h-10 text-xs font-semibold">AUTO SENSOR ON (A)</button>
                 <button type="button" data-direct-cmd="M" class="button button-secondary min-h-10 text-xs font-semibold">MANUAL MODE (M)</button>
             </div>
-            <div class="mt-3 grid grid-cols-3 gap-2">
+            <div class="mt-3 grid grid-cols-3 gap-2 rounded-2xl border border-zinc-200/90 bg-zinc-100/70 p-2.5 shadow-inner">
                 <div></div>
-                <button type="button" data-direct-drive="F" class="button button-secondary min-h-10 text-xs font-semibold">FORWARD</button>
+                <button type="button" data-direct-drive="F" class="button button-secondary min-h-14 rounded-2xl px-2 text-xs font-semibold whitespace-nowrap transition-transform active:scale-95 sm:min-h-10 sm:rounded-xl">FORWARD</button>
                 <div></div>
-                <button type="button" data-direct-drive="L" class="button button-secondary min-h-10 text-xs font-semibold">LEFT</button>
-                <button type="button" data-direct-cmd="S" class="button button-danger min-h-10 text-xs font-semibold">STOP</button>
-                <button type="button" data-direct-drive="R" class="button button-secondary min-h-10 text-xs font-semibold">RIGHT</button>
+                <button type="button" data-direct-drive="L" class="button button-secondary min-h-14 rounded-2xl px-2 text-xs font-semibold whitespace-nowrap transition-transform active:scale-95 sm:min-h-10 sm:rounded-xl">LEFT</button>
+                <button type="button" data-direct-cmd="S" class="button button-danger min-h-14 rounded-2xl px-2 text-xs font-semibold whitespace-nowrap transition-transform active:scale-95 sm:min-h-10 sm:rounded-xl">STOP</button>
+                <button type="button" data-direct-drive="R" class="button button-secondary min-h-14 rounded-2xl px-2 text-xs font-semibold whitespace-nowrap transition-transform active:scale-95 sm:min-h-10 sm:rounded-xl">RIGHT</button>
                 <div></div>
-                <button type="button" data-direct-drive="B" class="button button-secondary min-h-10 text-xs font-semibold">BACKWARD</button>
+                <button type="button" data-direct-drive="B" class="button button-secondary min-h-14 rounded-2xl px-2 text-xs font-semibold whitespace-nowrap transition-transform active:scale-95 sm:min-h-10 sm:rounded-xl">BACKWARD</button>
                 <div></div>
             </div>
-            <div class="mt-2.5 grid grid-cols-2 gap-2">
-                <button type="button" data-direct-cmd="O" class="button button-secondary min-h-9 text-xs">Open Gripper (Ch 5)</button>
-                <button type="button" data-direct-cmd="C" class="button button-secondary min-h-9 text-xs">Close Gripper (Ch 5)</button>
-                <button type="button" data-direct-cmd="P" class="button button-secondary min-h-9 text-xs">Grab -&gt; Rear Plastic Bin</button>
-                <button type="button" data-direct-cmd="G" class="button button-secondary min-h-9 text-xs">Grab -&gt; Rear General Bin</button>
+            <div class="mt-3 grid grid-cols-2 gap-2.5">
+                <button type="button" data-direct-cmd="O" class="button button-secondary min-h-11 text-xs">Open Gripper (Ch 5)</button>
+                <button type="button" data-direct-cmd="C" class="button button-secondary min-h-11 text-xs">Close Gripper (Ch 5)</button>
+                <button type="button" data-direct-cmd="P" class="button button-secondary min-h-11 text-xs">Grab -&gt; Rear Plastic Bin</button>
+                <button type="button" data-direct-cmd="G" class="button button-secondary min-h-11 text-xs">Grab -&gt; Rear General Bin</button>
             </div>
             <div class="mt-2.5 grid grid-cols-3 gap-2">
                 <button type="button" data-direct-cmd="[" class="button button-secondary min-h-9 text-xs" title="Shift Channel 0 Base Center +5 deg Left &amp; Save">Base Left (+5&deg;)</button>

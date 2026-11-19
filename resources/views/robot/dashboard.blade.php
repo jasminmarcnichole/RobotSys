@@ -86,7 +86,10 @@
     </script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-screen bg-zinc-50 font-sans text-zinc-950 antialiased">
+@php
+    $isMobileAppMode = request()->boolean('app') || str_contains((string) request()->userAgent(), 'RobotSysAndroid');
+@endphp
+<body class="min-h-screen bg-zinc-50 font-sans text-zinc-950 antialiased {{ $isMobileAppMode ? 'robotsys-app-mode' : '' }}">
     <a href="#main-content" class="skip-link">Skip to main content</a>
     <div class="app-shell">
         @include('robot.partials.topbar')
