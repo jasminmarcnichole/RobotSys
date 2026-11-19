@@ -40,11 +40,13 @@ class CameraDetectionController extends Controller
             return response()->json(['ok' => false, 'message' => 'Camera frame is not a valid image.'], 422);
         }
 
-        $decodedImage = @imagecreatefromstring($image);
-        if ($decodedImage === false) {
-            return response()->json(['ok' => false, 'message' => 'Camera frame could not be decoded.'], 422);
+        if (function_exists('imagecreatefromstring')) {
+            $decodedImage = @imagecreatefromstring($image);
+            if ($decodedImage === false) {
+                return response()->json(['ok' => false, 'message' => 'Camera frame could not be decoded.'], 422);
+            }
+            imagedestroy($decodedImage);
         }
-        imagedestroy($decodedImage);
 
         $baseUrl = config('services.robot.yolo_infer_url');
         if (! is_string($baseUrl) || ! filter_var($baseUrl, FILTER_VALIDATE_URL)) {
