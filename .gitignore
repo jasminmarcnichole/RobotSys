@@ -20,6 +20,9 @@
 /storage/pail
 /vendor
 /ArduinoCam/CameraWebServer/wifi_secrets.h
+/android/.gradle
+/android/app/build
+/android/local.properties
 Homestead.json
 Homestead.yaml
 Thumbs.db
