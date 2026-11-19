@@ -79,6 +79,7 @@ export class TensorFlowLiteVision {
 
     async detect(canvas) {
         const generation = this.generation;
+        let usedFallback = false;
         if (this.inferUrl && typeof canvas?.toDataURL === 'function' && typeof globalThis.fetch === 'function') {
             try {
                 const csrf = globalThis.document?.querySelector?.('meta[name="csrf-token"]')?.content ?? '';
@@ -98,6 +99,8 @@ export class TensorFlowLiteVision {
                 }
                 if (response.ok && payload?.ok === true && Array.isArray(payload.detections)) {
                     return {
+                        engine: String(payload.backend || 'YOLO26n Calibrated'),
+                        engineMode: 'backend',
                         inferenceMs: Number(payload.inference_ms ?? 0),
                         detections: payload.detections.map((item) => ({
                             boundingBox: {
@@ -113,10 +116,12 @@ export class TensorFlowLiteVision {
                         })),
                     };
                 }
+                usedFallback = true;
             } catch (error) {
                 if (error?.message === 'Detection stopped.' || this.generation !== generation) {
                     throw new Error('Detection stopped.');
                 }
+                usedFallback = true;
             }
         }
         const ready = this.load();
@@ -126,7 +131,12 @@ export class TensorFlowLiteVision {
             throw new Error('Detection stopped.');
         }
         const bitmap = await createImageBitmap(canvas);
-        return this.request({ type: 'detect', bitmap }, [bitmap], 20000, worker);
+        const result = await this.request({ type: 'detect', bitmap }, [bitmap], 20000, worker);
+        return {
+            ...result,
+            engine: usedFallback ? 'Browser TFLite (Fallback)' : 'Browser TFLite',
+            engineMode: usedFallback ? 'fallback' : 'browser',
+        };
     }
 
     dispose(error = new Error('Detection stopped.')) {
