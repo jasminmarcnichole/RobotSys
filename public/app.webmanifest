@@ -1,11 +1,12 @@
 {
     "id": "/",
-    "name": "RobotSys Control & Vision",
+    "name": "RobotSys Controller",
     "short_name": "RobotSys",
-    "description": "Robot control, camera review, and collection monitoring.",
+    "description": "Mobile robot controller for RobotSys.",
     "start_url": "/dashboard/control",
     "scope": "/",
     "display": "standalone",
+    "orientation": "portrait-primary",
     "background_color": "#f8faf8",
     "theme_color": "#065f46",
     "icons": [

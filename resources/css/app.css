@@ -137,6 +137,13 @@
 
     .icon-button {
         @apply inline-flex size-10 shrink-0 list-none items-center justify-center gap-1 rounded-xl border border-transparent bg-transparent text-zinc-600 transition-colors hover:bg-zinc-100/90 disabled:cursor-not-allowed disabled:opacity-40;
+        touch-action: manipulation;
+        user-select: none;
+    }
+
+    .button {
+        touch-action: manipulation;
+        user-select: none;
     }
 
     .status-badge {
@@ -518,12 +525,51 @@
 
     @media (display-mode: standalone) {
         .app-main {
-            padding-bottom: max(2rem, env(safe-area-inset-bottom));
+            @apply px-3 pt-3;
+            padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
         }
 
         .app-topbar {
+            @apply px-3;
             padding-top: env(safe-area-inset-top);
         }
+
+        .workspace-search-button,
+        .page-heading,
+        .workspace-health,
+        .app-main > footer,
+        [data-control-app] > div:first-child,
+        [data-control-app] .control-navigation,
+        [data-control-camera],
+        [data-apk-download] {
+            display: none !important;
+        }
+
+        [data-control-app] .control-panel {
+            @apply rounded-2xl p-4;
+        }
+    }
+
+    body.robotsys-app-mode .app-main {
+        @apply px-3 pt-3 lg:ml-0;
+        padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+    }
+
+    body.robotsys-app-mode .app-topbar,
+    body.robotsys-app-mode .app-sidebar,
+    body.robotsys-app-mode .workspace-search-button,
+    body.robotsys-app-mode .page-heading,
+    body.robotsys-app-mode .workspace-health,
+    body.robotsys-app-mode .app-main > footer,
+    body.robotsys-app-mode [data-control-app] > div:first-child,
+    body.robotsys-app-mode [data-control-app] .control-navigation,
+    body.robotsys-app-mode [data-control-camera],
+    body.robotsys-app-mode [data-apk-download] {
+        display: none !important;
+    }
+
+    body.robotsys-app-mode [data-control-app] .control-panel {
+        @apply rounded-2xl p-4;
     }
 }
 
