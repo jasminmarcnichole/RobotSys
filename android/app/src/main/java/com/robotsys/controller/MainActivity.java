@@ -7,9 +7,13 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputType;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -29,6 +33,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -39,21 +44,27 @@ public class MainActivity extends Activity {
     private static final String KEY_TOKEN = "sanctum_token";
     private static final String KEY_USER_NAME = "user_name";
     private static final String KEY_USER_EMAIL = "user_email";
+    private static final String KEY_LAST_EMAIL = "last_email";
     private static final String KEY_ROBOT_ID = "robot_id";
 
-    private static final String DEFAULT_BASE_URL = "http://10.0.2.2:8000";
     private static final String DEFAULT_DIRECT_URL = "http://192.168.4.1";
+    private static final long POLL_INTERVAL_MS = 5000L;
 
     private final ExecutorService executor = Executors.newCachedThreadPool();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private SharedPreferences prefs;
 
     private TextView headerSubtitle;
+    private Button headerSyncBtn;
     private TextView statusBanner;
+    private Runnable hideBannerRunnable;
 
     private View loginScreen;
     private EditText loginServerInput;
     private EditText loginEmailInput;
     private EditText loginPasswordInput;
+    private Button togglePasswordBtn;
+    private boolean passwordVisible = false;
     private TextView emailErrorText;
     private TextView passwordErrorText;
     private Button loginSubmitBtn;
@@ -69,7 +80,9 @@ public class MainActivity extends Activity {
     private TextView telemetryRobotText;
     private TextView telemetryStatusPill;
     private TextView telemetryBatteryText;
-    private TextView telemetryBinsText;
+    private View batteryBarFill;
+    private TextView telemetryPlasticBinText;
+    private TextView telemetryGeneralBinText;
     private TextView telemetryUpdatedText;
     private TextView directStatusText;
 
@@ -83,6 +96,17 @@ public class MainActivity extends Activity {
     private EditText settingsApiUrlInput;
     private EditText settingsDirectUrlInput;
     private EditText settingsRobotIdInput;
+    private TextView directTestResultText;
+
+    private final Runnable autoPollRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (isAuthenticated()) {
+                fetchStatus(false);
+                mainHandler.postDelayed(this, POLL_INTERVAL_MS);
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,9 +125,10 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         statusBanner = new TextView(this);
-        statusBanner.setPadding(dp(16), dp(10), dp(16), dp(10));
+        statusBanner.setPadding(dp(16), dp(11), dp(16), dp(11));
         statusBanner.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
         statusBanner.setVisibility(View.GONE);
+        statusBanner.setOnClickListener(v -> statusBanner.setVisibility(View.GONE));
         root.addView(statusBanner, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -123,6 +148,39 @@ public class MainActivity extends Activity {
         refreshAuthState();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (isAuthenticated()) {
+            startAutoPolling();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        stopAutoPolling();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        stopAutoPolling();
+        if (hideBannerRunnable != null) {
+            mainHandler.removeCallbacks(hideBannerRunnable);
+        }
+        executor.shutdownNow();
+    }
+
+    private void startAutoPolling() {
+        stopAutoPolling();
+        mainHandler.postDelayed(autoPollRunnable, POLL_INTERVAL_MS);
+    }
+
+    private void stopAutoPolling() {
+        mainHandler.removeCallbacks(autoPollRunnable);
+    }
+
     private View buildTopHeader() {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
@@ -137,7 +195,7 @@ public class MainActivity extends Activity {
         badge.setTypeface(Typeface.DEFAULT_BOLD);
         badge.setGravity(Gravity.CENTER);
         badge.setBackground(roundedBox("#065F46", "#10B981", dp(10)));
-        LinearLayout.LayoutParams badgeLp = new LinearLayout.LayoutParams(dp(36), dp(36));
+        LinearLayout.LayoutParams badgeLp = new LinearLayout.LayoutParams(dp(38), dp(38));
         badgeLp.rightMargin = dp(12);
         bar.addView(badge, badgeLp);
 
@@ -158,15 +216,15 @@ public class MainActivity extends Activity {
 
         bar.addView(titles, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        Button syncBtn = createButton("Sync", "#065F46", "#FFFFFF", "#10B981", dp(18), 12);
-        syncBtn.setPadding(dp(14), 0, dp(14), 0);
-        syncBtn.setOnClickListener(v -> {
+        headerSyncBtn = createButton("Sync", "#065F46", "#FFFFFF", "#10B981", dp(18), 12);
+        headerSyncBtn.setPadding(dp(14), 0, dp(14), 0);
+        headerSyncBtn.setOnClickListener(v -> {
             if (isAuthenticated()) {
-                fetchStatus();
+                fetchStatus(true);
                 fetchCommandHistory(1);
             }
         });
-        bar.addView(syncBtn, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(34)));
+        bar.addView(headerSyncBtn, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(34)));
 
         return bar;
     }
@@ -178,43 +236,81 @@ public class MainActivity extends Activity {
         LinearLayout container = new LinearLayout(this);
         container.setOrientation(LinearLayout.VERTICAL);
         container.setGravity(Gravity.CENTER_HORIZONTAL);
-        container.setPadding(dp(20), dp(24), dp(20), dp(24));
+        container.setPadding(dp(20), dp(24), dp(20), dp(28));
 
         LinearLayout card = createCard();
 
         TextView eyebrow = new TextView(this);
-        eyebrow.setText("HEADLESS SANCTUM API");
+        eyebrow.setText("SANCTUM SECURE SIGN-IN");
         eyebrow.setTextColor(Color.parseColor("#047857"));
         eyebrow.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
         eyebrow.setTypeface(Typeface.DEFAULT_BOLD);
         card.addView(eyebrow);
 
         TextView heading = new TextView(this);
-        heading.setText("Sign in to Controller");
+        heading.setText("Connect to RobotSys");
         heading.setTextColor(Color.parseColor("#18181B"));
         heading.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
         heading.setTypeface(Typeface.DEFAULT_BOLD);
         card.addView(heading, topMarginLp(dp(4)));
 
         TextView sub = new TextView(this);
-        sub.setText("Authenticate with your RobotSys administrator account to receive a Sanctum personal access token.");
+        sub.setText("Sign in with your administrator account to sync live telemetry and control the robot.");
         sub.setTextColor(Color.parseColor("#52525B"));
         sub.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         card.addView(sub, topMarginLp(dp(6)));
 
-        card.addView(createFieldLabel("Laravel API Server URL"), topMarginLp(dp(16)));
-        loginServerInput = createInput(getBaseUrl(), InputType.TYPE_TEXT_VARIATION_URI);
+        card.addView(createFieldLabel("Laravel Server URL"), topMarginLp(dp(18)));
+        loginServerInput = createInput(
+                prefs.getString(KEY_BASE_URL, ""),
+                "https://your-app.up.railway.app or http://192.168.x.x:8000",
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI
+        );
         card.addView(loginServerInput, topMarginLp(dp(6)));
 
+        TextView urlHint = new TextView(this);
+        urlHint.setText("Use your deployed HTTPS domain, or your PC's Wi-Fi IP (e.g. http://192.168.x.x:8000) for local testing.");
+        urlHint.setTextColor(Color.parseColor("#71717A"));
+        urlHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        card.addView(urlHint, topMarginLp(dp(4)));
+
         card.addView(createFieldLabel("Administrator Email"), topMarginLp(dp(14)));
-        loginEmailInput = createInput("admin@example.com", InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        loginEmailInput = createInput(
+                prefs.getString(KEY_LAST_EMAIL, ""),
+                "admin@example.com",
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+        );
         card.addView(loginEmailInput, topMarginLp(dp(6)));
 
         emailErrorText = createErrorText();
         card.addView(emailErrorText, topMarginLp(dp(4)));
 
-        card.addView(createFieldLabel("Password"), topMarginLp(dp(12)));
-        loginPasswordInput = createInput("password", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        LinearLayout passLabelRow = new LinearLayout(this);
+        passLabelRow.setOrientation(LinearLayout.HORIZONTAL);
+        passLabelRow.setGravity(Gravity.CENTER_VERTICAL);
+        passLabelRow.addView(createFieldLabel("Password"),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        togglePasswordBtn = new Button(this);
+        togglePasswordBtn.setText("Show");
+        togglePasswordBtn.setAllCaps(false);
+        togglePasswordBtn.setTextColor(Color.parseColor("#047857"));
+        togglePasswordBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        togglePasswordBtn.setTypeface(Typeface.DEFAULT_BOLD);
+        togglePasswordBtn.setBackgroundColor(Color.TRANSPARENT);
+        togglePasswordBtn.setPadding(dp(8), dp(2), dp(4), dp(2));
+        togglePasswordBtn.setMinHeight(0);
+        togglePasswordBtn.setMinimumHeight(0);
+        togglePasswordBtn.setOnClickListener(v -> togglePasswordVisibility());
+        passLabelRow.addView(togglePasswordBtn, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        card.addView(passLabelRow, topMarginLp(dp(12)));
+
+        loginPasswordInput = createInput(
+                "",
+                "Enter your password",
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD
+        );
         card.addView(loginPasswordInput, topMarginLp(dp(6)));
 
         passwordErrorText = createErrorText();
@@ -223,7 +319,7 @@ public class MainActivity extends Activity {
         loginSubmitBtn = createButton("Sign In & Connect", "#047857", "#FFFFFF", "#065F46", dp(14), 14);
         loginSubmitBtn.setOnClickListener(v -> performLogin());
         LinearLayout.LayoutParams btnLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
         btnLp.topMargin = dp(20);
         card.addView(loginSubmitBtn, btnLp);
 
@@ -231,6 +327,19 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         scroll.addView(container);
         return scroll;
+    }
+
+    private void togglePasswordVisibility() {
+        passwordVisible = !passwordVisible;
+        int selection = loginPasswordInput.getSelectionEnd();
+        loginPasswordInput.setInputType(passwordVisible
+                ? InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                : InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        loginPasswordInput.setTypeface(Typeface.DEFAULT);
+        if (selection >= 0) {
+            loginPasswordInput.setSelection(selection);
+        }
+        togglePasswordBtn.setText(passwordVisible ? "Hide" : "Show");
     }
 
     private LinearLayout buildAuthenticatedShell() {
@@ -252,13 +361,20 @@ public class MainActivity extends Activity {
         shell.addView(pages, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
+        View divider = new View(this);
+        divider.setBackgroundColor(Color.parseColor("#E4E4E7"));
+        shell.addView(divider, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)));
+
         LinearLayout bottomNav = new LinearLayout(this);
         bottomNav.setOrientation(LinearLayout.HORIZONTAL);
-        bottomNav.setPadding(dp(12), dp(8), dp(12), dp(8));
+        bottomNav.setPadding(dp(12), dp(8), dp(12), dp(10));
         bottomNav.setBackgroundColor(Color.WHITE);
 
         navControllerBtn = createNavTabButton("Controller", () -> switchTab(0));
-        navHistoryBtn = createNavTabButton("Commands", () -> switchTab(1));
+        navHistoryBtn = createNavTabButton("Commands", () -> {
+            switchTab(1);
+            fetchCommandHistory(1);
+        });
         navSettingsBtn = createNavTabButton("Settings", () -> switchTab(2));
 
         bottomNav.addView(navControllerBtn, new LinearLayout.LayoutParams(0, dp(44), 1f));
@@ -279,7 +395,7 @@ public class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(dp(14), dp(14), dp(14), dp(20));
+        col.setPadding(dp(14), dp(14), dp(14), dp(22));
 
         // 1. Live Telemetry Summary Card
         LinearLayout telemetryCard = createCard();
@@ -290,7 +406,7 @@ public class MainActivity extends Activity {
         telemetryRobotText = new TextView(this);
         telemetryRobotText.setText(getRobotId());
         telemetryRobotText.setTextColor(Color.parseColor("#18181B"));
-        telemetryRobotText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        telemetryRobotText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         telemetryRobotText.setTypeface(Typeface.DEFAULT_BOLD);
         tHeader.addView(telemetryRobotText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
@@ -298,61 +414,104 @@ public class MainActivity extends Activity {
         telemetryStatusPill.setText("Awaiting Data");
         telemetryStatusPill.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
         telemetryStatusPill.setTypeface(Typeface.DEFAULT_BOLD);
-        telemetryStatusPill.setTextColor(Color.parseColor("#065F46"));
         telemetryStatusPill.setPadding(dp(10), dp(4), dp(10), dp(4));
-        telemetryStatusPill.setBackground(roundedBox("#ECFDF5", "#A7F3D0", dp(99)));
+        styleStatusPill(telemetryStatusPill, "neutral");
         tHeader.addView(telemetryStatusPill);
         telemetryCard.addView(tHeader);
 
-        LinearLayout metricsRow = new LinearLayout(this);
-        metricsRow.setOrientation(LinearLayout.HORIZONTAL);
-        telemetryBatteryText = new TextView(this);
-        telemetryBatteryText.setText("Battery: --%");
-        telemetryBatteryText.setTextColor(Color.parseColor("#3F3F46"));
-        telemetryBatteryText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        metricsRow.addView(telemetryBatteryText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        // Battery Row + Progress Bar
+        LinearLayout batteryRow = new LinearLayout(this);
+        batteryRow.setOrientation(LinearLayout.HORIZONTAL);
+        batteryRow.setGravity(Gravity.CENTER_VERTICAL);
 
-        telemetryBinsText = new TextView(this);
-        telemetryBinsText.setText("Bins: -- / --");
-        telemetryBinsText.setTextColor(Color.parseColor("#3F3F46"));
-        telemetryBinsText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        metricsRow.addView(telemetryBinsText);
-        telemetryCard.addView(metricsRow, topMarginLp(dp(8)));
+        TextView batLabel = new TextView(this);
+        batLabel.setText("Battery Charge");
+        batLabel.setTextColor(Color.parseColor("#52525B"));
+        batLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        batteryRow.addView(batLabel, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        telemetryBatteryText = new TextView(this);
+        telemetryBatteryText.setText("--%");
+        telemetryBatteryText.setTextColor(Color.parseColor("#18181B"));
+        telemetryBatteryText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        telemetryBatteryText.setTypeface(Typeface.DEFAULT_BOLD);
+        batteryRow.addView(telemetryBatteryText);
+        telemetryCard.addView(batteryRow, topMarginLp(dp(12)));
+
+        FrameLayout batteryTrack = new FrameLayout(this);
+        batteryTrack.setBackground(roundedBox("#F4F4F5", "#E4E4E7", dp(99)));
+        batteryBarFill = new View(this);
+        batteryBarFill.setBackground(roundedBox("#10B981", "#10B981", dp(99)));
+        batteryTrack.addView(batteryBarFill, new FrameLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT));
+        LinearLayout.LayoutParams trackLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(8));
+        trackLp.topMargin = dp(6);
+        telemetryCard.addView(batteryTrack, trackLp);
+
+        // Bin Level Chips
+        LinearLayout binsRow = new LinearLayout(this);
+        binsRow.setOrientation(LinearLayout.HORIZONTAL);
+
+        telemetryPlasticBinText = createMetricChip("Plastic Bin: --");
+        telemetryGeneralBinText = createMetricChip("General Bin: --");
+
+        LinearLayout.LayoutParams chipLeft = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        chipLeft.rightMargin = dp(6);
+        LinearLayout.LayoutParams chipRight = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        chipRight.leftMargin = dp(6);
+        binsRow.addView(telemetryPlasticBinText, chipLeft);
+        binsRow.addView(telemetryGeneralBinText, chipRight);
+        telemetryCard.addView(binsRow, topMarginLp(dp(10)));
 
         telemetryUpdatedText = new TextView(this);
         telemetryUpdatedText.setText("Last report: checking...");
         telemetryUpdatedText.setTextColor(Color.parseColor("#71717A"));
         telemetryUpdatedText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
-        telemetryCard.addView(telemetryUpdatedText, topMarginLp(dp(4)));
+        telemetryCard.addView(telemetryUpdatedText, topMarginLp(dp(8)));
 
         col.addView(telemetryCard);
 
         // 2. Sanctum API Command Queue Card (START / STOP / RESET)
         LinearLayout queueCard = createCard();
         TextView qTitle = new TextView(this);
-        qTitle.setText("Cloud Command Queue (Sanctum API)");
+        qTitle.setText("Cloud Command Queue");
         qTitle.setTextColor(Color.parseColor("#18181B"));
         qTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         qTitle.setTypeface(Typeface.DEFAULT_BOLD);
         queueCard.addView(qTitle);
 
+        TextView qSub = new TextView(this);
+        qSub.setText("Queued through Laravel Sanctum API for remote & autonomous operation.");
+        qSub.setTextColor(Color.parseColor("#71717A"));
+        qSub.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        queueCard.addView(qSub, topMarginLp(dp(2)));
+
+        LinearLayout.LayoutParams halfLeft = new LinearLayout.LayoutParams(0, dp(48), 1f);
+        halfLeft.rightMargin = dp(6);
+        LinearLayout.LayoutParams halfRight = new LinearLayout.LayoutParams(0, dp(48), 1f);
+        halfRight.leftMargin = dp(6);
+
         LinearLayout qRow = new LinearLayout(this);
         qRow.setOrientation(LinearLayout.HORIZONTAL);
         Button startBtn = createButton("START (AUTO)", "#047857", "#FFFFFF", "#065F46", dp(12), 13);
-        startBtn.setOnClickListener(v -> sendApiCommand("START"));
+        startBtn.setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            sendApiCommand("START");
+        });
         Button stopApiBtn = createButton("STOP", "#B91C1C", "#FFFFFF", "#991B1B", dp(12), 13);
-        stopApiBtn.setOnClickListener(v -> sendApiCommand("STOP"));
+        stopApiBtn.setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            sendApiCommand("STOP");
+        });
 
-        LinearLayout.LayoutParams halfLeft = new LinearLayout.LayoutParams(0, dp(46), 1f);
-        halfLeft.rightMargin = dp(6);
-        LinearLayout.LayoutParams halfRight = new LinearLayout.LayoutParams(0, dp(46), 1f);
-        halfRight.leftMargin = dp(6);
         qRow.addView(startBtn, halfLeft);
         qRow.addView(stopApiBtn, halfRight);
         queueCard.addView(qRow, topMarginLp(dp(10)));
 
         Button resetBtn = createButton("RESET (MANUAL MODE)", "#FFFFFF", "#27272A", "#D4D4D8", dp(12), 13);
-        resetBtn.setOnClickListener(v -> sendApiCommand("RESET"));
+        resetBtn.setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            sendApiCommand("RESET");
+        });
         LinearLayout.LayoutParams fullLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44));
         fullLp.topMargin = dp(8);
         queueCard.addView(resetBtn, fullLp);
@@ -379,25 +538,36 @@ public class MainActivity extends Activity {
         dHead.addView(directStatusText);
         directCard.addView(dHead);
 
+        TextView dHint = new TextView(this);
+        dHint.setText("Hold a directional pad button to drive; release to stop immediately.");
+        dHint.setTextColor(Color.parseColor("#71717A"));
+        dHint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        directCard.addView(dHint, topMarginLp(dp(2)));
+
         LinearLayout modeRow = new LinearLayout(this);
         modeRow.setOrientation(LinearLayout.HORIZONTAL);
         Button autoModeBtn = createButton("AUTO SENSOR (A)", "#065F46", "#FFFFFF", "#047857", dp(12), 12);
-        autoModeBtn.setOnClickListener(v -> sendDirectCommand("A"));
+        autoModeBtn.setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            sendDirectCommand("A");
+        });
         Button manualModeBtn = createButton("MANUAL MODE (M)", "#FFFFFF", "#27272A", "#D4D4D8", dp(12), 12);
-        manualModeBtn.setOnClickListener(v -> sendDirectCommand("M"));
+        manualModeBtn.setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            sendDirectCommand("M");
+        });
         modeRow.addView(autoModeBtn, halfLeft);
         modeRow.addView(manualModeBtn, halfRight);
         directCard.addView(modeRow, topMarginLp(dp(10)));
 
-        // Recessed 3x3 D-Pad
+        // Recessed 3x3 Hold-to-Drive D-Pad
         LinearLayout padBox = new LinearLayout(this);
         padBox.setOrientation(LinearLayout.VERTICAL);
         padBox.setPadding(dp(10), dp(10), dp(10), dp(10));
         padBox.setBackground(roundedBox("#F4F4F5", "#E4E4E7", dp(16)));
 
         padBox.addView(buildDpadRow(null, "FORWARD", "F", false, null));
-        LinearLayout midDpad = buildDpadRow("LEFT", "STOP", "S", true, "RIGHT");
-        padBox.addView(midDpad, topMarginLp(dp(8)));
+        padBox.addView(buildDpadRow("LEFT", "STOP", "S", true, "RIGHT"), topMarginLp(dp(8)));
         padBox.addView(buildDpadRow(null, "BACKWARD", "B", false, null), topMarginLp(dp(8)));
         directCard.addView(padBox, topMarginLp(dp(12)));
 
@@ -431,11 +601,11 @@ public class MainActivity extends Activity {
         Button baseRightBtn = createButton("Base -5°", "#FFFFFF", "#27272A", "#D4D4D8", dp(10), 11);
         baseRightBtn.setOnClickListener(v -> sendDirectCommand("]"));
 
-        LinearLayout.LayoutParams third1 = new LinearLayout.LayoutParams(0, dp(40), 1f);
-        LinearLayout.LayoutParams third2 = new LinearLayout.LayoutParams(0, dp(40), 1f);
+        LinearLayout.LayoutParams third1 = new LinearLayout.LayoutParams(0, dp(42), 1f);
+        LinearLayout.LayoutParams third2 = new LinearLayout.LayoutParams(0, dp(42), 1f);
         third2.leftMargin = dp(6);
         third2.rightMargin = dp(6);
-        LinearLayout.LayoutParams third3 = new LinearLayout.LayoutParams(0, dp(40), 1f);
+        LinearLayout.LayoutParams third3 = new LinearLayout.LayoutParams(0, dp(42), 1f);
         baseRow.addView(baseLeftBtn, third1);
         baseRow.addView(homeArmBtn, third2);
         baseRow.addView(baseRightBtn, third3);
@@ -450,34 +620,33 @@ public class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
 
-        LinearLayout.LayoutParams c1 = new LinearLayout.LayoutParams(0, dp(54), 1f);
-        LinearLayout.LayoutParams c2 = new LinearLayout.LayoutParams(0, dp(54), 1f);
+        LinearLayout.LayoutParams c1 = new LinearLayout.LayoutParams(0, dp(58), 1f);
+        LinearLayout.LayoutParams c2 = new LinearLayout.LayoutParams(0, dp(58), 1f);
         c2.leftMargin = dp(8);
         c2.rightMargin = dp(8);
-        LinearLayout.LayoutParams c3 = new LinearLayout.LayoutParams(0, dp(54), 1f);
+        LinearLayout.LayoutParams c3 = new LinearLayout.LayoutParams(0, dp(58), 1f);
 
         if (leftLabel != null) {
-            Button lBtn = createButton(leftLabel, "#FFFFFF", "#18181B", "#D4D4D8", dp(14), 12);
-            lBtn.setOnClickListener(v -> sendDirectCommand("L"));
+            Button lBtn = createHoldDriveButton(leftLabel, "L");
             row.addView(lBtn, c1);
         } else {
             row.addView(new View(this), c1);
         }
 
-        Button midBtn = createButton(
-                centerLabel,
-                centerDanger ? "#B91C1C" : "#FFFFFF",
-                centerDanger ? "#FFFFFF" : "#18181B",
-                centerDanger ? "#991B1B" : "#D4D4D8",
-                dp(14),
-                12
-        );
-        midBtn.setOnClickListener(v -> sendDirectCommand(centerCmd));
-        row.addView(midBtn, c2);
+        if (centerDanger) {
+            Button midBtn = createButton(centerLabel, "#B91C1C", "#FFFFFF", "#991B1B", dp(14), 12);
+            midBtn.setOnClickListener(v -> {
+                v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                sendDirectCommand(centerCmd);
+            });
+            row.addView(midBtn, c2);
+        } else {
+            Button midBtn = createHoldDriveButton(centerLabel, centerCmd);
+            row.addView(midBtn, c2);
+        }
 
         if (rightLabel != null) {
-            Button rBtn = createButton(rightLabel, "#FFFFFF", "#18181B", "#D4D4D8", dp(14), 12);
-            rBtn.setOnClickListener(v -> sendDirectCommand("R"));
+            Button rBtn = createHoldDriveButton(rightLabel, "R");
             row.addView(rBtn, c3);
         } else {
             row.addView(new View(this), c3);
@@ -486,18 +655,41 @@ public class MainActivity extends Activity {
         return row;
     }
 
+    private Button createHoldDriveButton(String label, String cmd) {
+        Button btn = createButton(label, "#FFFFFF", "#18181B", "#D4D4D8", dp(14), 12);
+        btn.setOnTouchListener((v, event) -> {
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                v.getParent().requestDisallowInterceptTouchEvent(true);
+                v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                v.setBackground(roundedBox("#ECFDF5", "#047857", dp(14)));
+                btn.setTextColor(Color.parseColor("#065F46"));
+                sendDirectCommand(cmd);
+                return true;
+            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                v.getParent().requestDisallowInterceptTouchEvent(false);
+                v.setBackground(roundedBox("#FFFFFF", "#D4D4D8", dp(14)));
+                btn.setTextColor(Color.parseColor("#18181B"));
+                sendDirectCommand("S");
+                return true;
+            }
+            return false;
+        });
+        return btn;
+    }
+
     private View buildHistoryTab() {
         ScrollView scroll = new ScrollView(this);
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(dp(14), dp(14), dp(14), dp(20));
+        col.setPadding(dp(14), dp(14), dp(14), dp(22));
 
         LinearLayout headerRow = new LinearLayout(this);
         headerRow.setOrientation(LinearLayout.HORIZONTAL);
         headerRow.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView title = new TextView(this);
-        title.setText("Recent Command Cards");
+        title.setText("Recent Commands");
         title.setTextColor(Color.parseColor("#18181B"));
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         title.setTypeface(Typeface.DEFAULT_BOLD);
@@ -532,11 +724,11 @@ public class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(dp(14), dp(14), dp(14), dp(20));
+        col.setPadding(dp(14), dp(14), dp(14), dp(22));
 
         LinearLayout accountCard = createCard();
         TextView aTitle = new TextView(this);
-        aTitle.setText("Authenticated Administrator");
+        aTitle.setText("AUTHENTICATED ADMINISTRATOR");
         aTitle.setTextColor(Color.parseColor("#71717A"));
         aTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
         aTitle.setTypeface(Typeface.DEFAULT_BOLD);
@@ -553,7 +745,7 @@ public class MainActivity extends Activity {
         accountEmailText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         accountCard.addView(accountEmailText, topMarginLp(dp(2)));
 
-        Button logoutBtn = createButton("Sign Out (Revoke Sanctum Token)", "#FEF2F2", "#B91C1C", "#FECACA", dp(12), 13);
+        Button logoutBtn = createButton("Sign Out (Revoke Token)", "#FEF2F2", "#B91C1C", "#FECACA", dp(12), 13);
         logoutBtn.setOnClickListener(v -> performLogout());
         LinearLayout.LayoutParams outLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44));
         outLp.topMargin = dp(14);
@@ -569,36 +761,93 @@ public class MainActivity extends Activity {
         connCard.addView(cTitle);
 
         connCard.addView(createFieldLabel("Active Robot ID"), topMarginLp(dp(12)));
-        settingsRobotIdInput = createInput(getRobotId(), InputType.TYPE_CLASS_TEXT);
+        settingsRobotIdInput = createInput(getRobotId(), "ROBOT-001", InputType.TYPE_CLASS_TEXT);
         connCard.addView(settingsRobotIdInput, topMarginLp(dp(6)));
 
         connCard.addView(createFieldLabel("Laravel Sanctum API Base URL"), topMarginLp(dp(12)));
-        settingsApiUrlInput = createInput(getBaseUrl(), InputType.TYPE_TEXT_VARIATION_URI);
+        settingsApiUrlInput = createInput(getBaseUrl(), "https://your-app.up.railway.app",
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
         connCard.addView(settingsApiUrlInput, topMarginLp(dp(6)));
 
         connCard.addView(createFieldLabel("Direct ESP32 Robot Controller URL"), topMarginLp(dp(12)));
-        settingsDirectUrlInput = createInput(getDirectUrl(), InputType.TYPE_TEXT_VARIATION_URI);
+        settingsDirectUrlInput = createInput(getDirectUrl(), "http://192.168.4.1",
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
         connCard.addView(settingsDirectUrlInput, topMarginLp(dp(6)));
 
         Button saveBtn = createButton("Save Connection Settings", "#047857", "#FFFFFF", "#065F46", dp(12), 13);
         saveBtn.setOnClickListener(v -> {
+            String normalizedApi = normalizeUrl(settingsApiUrlInput.getText().toString(), false);
+            String normalizedDirect = normalizeUrl(settingsDirectUrlInput.getText().toString(), true);
+            String robotId = settingsRobotIdInput.getText().toString().trim();
+            if (robotId.isEmpty()) {
+                robotId = "ROBOT-001";
+            }
             prefs.edit()
-                    .putString(KEY_ROBOT_ID, settingsRobotIdInput.getText().toString().trim())
-                    .putString(KEY_BASE_URL, settingsApiUrlInput.getText().toString().trim())
-                    .putString(KEY_DIRECT_URL, settingsDirectUrlInput.getText().toString().trim())
+                    .putString(KEY_ROBOT_ID, robotId)
+                    .putString(KEY_BASE_URL, normalizedApi)
+                    .putString(KEY_DIRECT_URL, normalizedDirect)
                     .apply();
+            settingsRobotIdInput.setText(robotId);
+            settingsApiUrlInput.setText(normalizedApi);
+            settingsDirectUrlInput.setText(normalizedDirect);
             telemetryRobotText.setText(getRobotId());
             updateHeaderSubtitle();
             showBanner("Connection settings saved.", false);
-            fetchStatus();
+            fetchStatus(true);
         });
         LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46));
         saveLp.topMargin = dp(16);
         connCard.addView(saveBtn, saveLp);
 
+        Button testDirectBtn = createButton("Test Direct ESP32 Connection", "#FFFFFF", "#065F46", "#A7F3D0", dp(12), 13);
+        testDirectBtn.setOnClickListener(v -> testDirectConnection());
+        LinearLayout.LayoutParams testLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42));
+        testLp.topMargin = dp(8);
+        connCard.addView(testDirectBtn, testLp);
+
+        directTestResultText = new TextView(this);
+        directTestResultText.setTextColor(Color.parseColor("#71717A"));
+        directTestResultText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        directTestResultText.setVisibility(View.GONE);
+        connCard.addView(directTestResultText, topMarginLp(dp(6)));
+
         col.addView(connCard, topMarginLp(dp(12)));
         scroll.addView(col);
         return scroll;
+    }
+
+    private void testDirectConnection() {
+        String target = normalizeUrl(settingsDirectUrlInput.getText().toString(), true);
+        directTestResultText.setVisibility(View.VISIBLE);
+        directTestResultText.setTextColor(Color.parseColor("#52525B"));
+        directTestResultText.setText("Pinging " + target + "...");
+        executor.execute(() -> {
+            HttpURLConnection conn = null;
+            try {
+                URL url = new URL(target + "/arm/config");
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(2500);
+                conn.setReadTimeout(2500);
+                int code = conn.getResponseCode();
+                runOnUiThread(() -> {
+                    boolean ok = code >= 200 && code < 400;
+                    directTestResultText.setTextColor(Color.parseColor(ok ? "#065F46" : "#92400E"));
+                    directTestResultText.setText(ok
+                            ? "ESP32 reachable at " + target + " (HTTP " + code + ")."
+                            : "ESP32 responded with HTTP " + code + " at " + target + ".");
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    directTestResultText.setTextColor(Color.parseColor("#991B1B"));
+                    directTestResultText.setText("Cannot reach " + target + ". Make sure your phone is connected to the robot's Wi-Fi AP.");
+                });
+            } finally {
+                if (conn != null) {
+                    conn.disconnect();
+                }
+            }
+        });
     }
 
     private void switchTab(int index) {
@@ -628,21 +877,35 @@ public class MainActivity extends Activity {
 
     private void refreshAuthState() {
         updateHeaderSubtitle();
-        if (isAuthenticated()) {
+        boolean authed = isAuthenticated();
+        headerSyncBtn.setVisibility(authed ? View.VISIBLE : View.GONE);
+
+        if (authed) {
             loginScreen.setVisibility(View.GONE);
             mainShell.setVisibility(View.VISIBLE);
             accountNameText.setText(prefs.getString(KEY_USER_NAME, "Administrator"));
-            accountEmailText.setText(prefs.getString(KEY_USER_EMAIL, "admin@example.com"));
+            accountEmailText.setText(prefs.getString(KEY_USER_EMAIL, ""));
             settingsApiUrlInput.setText(getBaseUrl());
             settingsDirectUrlInput.setText(getDirectUrl());
             settingsRobotIdInput.setText(getRobotId());
-            fetchStatus();
+            telemetryRobotText.setText(getRobotId());
+            fetchStatus(true);
             fetchCommandHistory(1);
+            startAutoPolling();
         } else {
+            stopAutoPolling();
             mainShell.setVisibility(View.GONE);
             loginScreen.setVisibility(View.VISIBLE);
-            loginServerInput.setText(getBaseUrl());
+            loginServerInput.setText(prefs.getString(KEY_BASE_URL, ""));
+            loginEmailInput.setText(prefs.getString(KEY_LAST_EMAIL, ""));
+            loginPasswordInput.setText("");
         }
+    }
+
+    private void handleSessionExpired() {
+        prefs.edit().remove(KEY_TOKEN).apply();
+        showBanner("Session expired. Please sign in again.", true);
+        refreshAuthState();
     }
 
     private void performLogin() {
@@ -650,14 +913,21 @@ public class MainActivity extends Activity {
         passwordErrorText.setVisibility(View.GONE);
         statusBanner.setVisibility(View.GONE);
 
-        String serverUrl = loginServerInput.getText().toString().trim().replaceAll("/+$", "");
+        String rawUrl = loginServerInput.getText().toString().trim();
         String email = loginEmailInput.getText().toString().trim();
         String password = loginPasswordInput.getText().toString();
 
-        if (!serverUrl.isEmpty()) {
-            prefs.edit().putString(KEY_BASE_URL, serverUrl).apply();
-            updateHeaderSubtitle();
+        if (rawUrl.isEmpty()) {
+            showBanner("Please enter your Laravel Server URL first.", true);
+            return;
         }
+        String serverUrl = normalizeUrl(rawUrl, false);
+        loginServerInput.setText(serverUrl);
+        prefs.edit()
+                .putString(KEY_BASE_URL, serverUrl)
+                .putString(KEY_LAST_EMAIL, email)
+                .apply();
+        updateHeaderSubtitle();
 
         loginSubmitBtn.setEnabled(false);
         loginSubmitBtn.setText("Signing in...");
@@ -690,12 +960,14 @@ public class MainActivity extends Activity {
             JSONObject json = new JSONObject(res.body);
             if (res.code == 200 && json.has("token")) {
                 JSONObject user = json.optJSONObject("user");
+                String userEmail = user != null ? user.optString("email", "") : "";
                 prefs.edit()
                         .putString(KEY_TOKEN, json.getString("token"))
                         .putString(KEY_USER_NAME, user != null ? user.optString("name", "Administrator") : "Administrator")
-                        .putString(KEY_USER_EMAIL, user != null ? user.optString("email", "") : "")
+                        .putString(KEY_USER_EMAIL, userEmail)
+                        .putString(KEY_LAST_EMAIL, userEmail)
                         .apply();
-                showBanner("Signed in with Sanctum token.", false);
+                showBanner("Signed in securely.", false);
                 refreshAuthState();
             } else if (res.code == 422) {
                 JSONObject errors = json.optJSONObject("errors");
@@ -715,7 +987,7 @@ public class MainActivity extends Activity {
                 showBanner(json.optString("message", "Sign in failed (HTTP " + res.code + ")."), true);
             }
         } catch (Exception e) {
-            showBanner("Unexpected server response (HTTP " + res.code + ").", true);
+            showBanner("Unexpected server response (HTTP " + res.code + "). Check your Server URL.", true);
         }
     }
 
@@ -733,14 +1005,22 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void fetchStatus() {
+    private void fetchStatus(boolean showSyncIndicator) {
+        if (showSyncIndicator) {
+            headerSyncBtn.setEnabled(false);
+            headerSyncBtn.setText("...");
+        }
         executor.execute(() -> {
             try {
-                ApiResponse res = requestApi("GET", "/api/v1/mobile/status?robot_id=" + getRobotId(), null, true);
+                ApiResponse res = requestApi("GET",
+                        "/api/v1/mobile/status?robot_id=" + Uri.encode(getRobotId()), null, true);
                 runOnUiThread(() -> {
+                    if (showSyncIndicator) {
+                        headerSyncBtn.setEnabled(true);
+                        headerSyncBtn.setText("Sync");
+                    }
                     if (res.code == 401) {
-                        prefs.edit().remove(KEY_TOKEN).apply();
-                        refreshAuthState();
+                        handleSessionExpired();
                         return;
                     }
                     try {
@@ -748,21 +1028,64 @@ public class MainActivity extends Activity {
                         telemetryRobotText.setText(json.optString("robot_id", getRobotId()));
                         JSONObject tel = json.optJSONObject("telemetry");
                         if (tel != null) {
-                            telemetryStatusPill.setText(tel.optString("movement_status", "Active"));
-                            telemetryBatteryText.setText("Battery: " + Math.round(tel.optDouble("battery_level", 0)) + "%");
-                            telemetryBinsText.setText("Bins: P " + tel.optString("plastic_bin_level", "--")
-                                    + " / G " + tel.optString("general_bin_level", "--"));
+                            String movement = tel.optString("movement_status", "Active");
+                            telemetryStatusPill.setText(movement);
+                            String low = movement.toLowerCase(Locale.US);
+                            if (low.contains("stop")) {
+                                styleStatusPill(telemetryStatusPill, "danger");
+                            } else if (low.contains("idle") || low.contains("reset") || low.contains("pause")) {
+                                styleStatusPill(telemetryStatusPill, "warning");
+                            } else {
+                                styleStatusPill(telemetryStatusPill, "success");
+                            }
+
+                            int bat = (int) Math.max(0, Math.min(100, Math.round(tel.optDouble("battery_level", 0))));
+                            telemetryBatteryText.setText(bat + "%");
+                            updateBatteryBar(bat);
+
+                            telemetryPlasticBinText.setText("Plastic Bin: " + tel.optString("plastic_bin_level", "--"));
+                            telemetryGeneralBinText.setText("General Bin: " + tel.optString("general_bin_level", "--"));
                             telemetryUpdatedText.setText("Updated: " + tel.optString("updated_human", "Recently"));
                         } else {
                             telemetryStatusPill.setText("No Telemetry");
+                            styleStatusPill(telemetryStatusPill, "neutral");
+                            telemetryBatteryText.setText("--%");
+                            updateBatteryBar(0);
+                            telemetryPlasticBinText.setText("Plastic Bin: --");
+                            telemetryGeneralBinText.setText("General Bin: --");
                             telemetryUpdatedText.setText("Waiting for first robot telemetry log");
                         }
                     } catch (Exception ignored) {
                     }
                 });
             } catch (Exception e) {
-                runOnUiThread(() -> telemetryUpdatedText.setText("Offline: cannot reach " + getBaseUrl()));
+                runOnUiThread(() -> {
+                    if (showSyncIndicator) {
+                        headerSyncBtn.setEnabled(true);
+                        headerSyncBtn.setText("Sync");
+                    }
+                    telemetryStatusPill.setText("Offline");
+                    styleStatusPill(telemetryStatusPill, "warning");
+                    telemetryUpdatedText.setText("Cannot reach " + getBaseUrl());
+                });
             }
+        });
+    }
+
+    private void updateBatteryBar(int percent) {
+        if (batteryBarFill == null) {
+            return;
+        }
+        batteryBarFill.post(() -> {
+            View parent = (View) batteryBarFill.getParent();
+            int totalWidth = parent != null ? parent.getWidth() : 0;
+            if (totalWidth > 0) {
+                ViewGroup.LayoutParams lp = batteryBarFill.getLayoutParams();
+                lp.width = Math.round(totalWidth * (percent / 100f));
+                batteryBarFill.setLayoutParams(lp);
+            }
+            String colorHex = percent <= 20 ? "#DC2626" : (percent <= 45 ? "#D97706" : "#059669");
+            batteryBarFill.setBackground(roundedBox(colorHex, colorHex, dp(99)));
         });
     }
 
@@ -774,6 +1097,10 @@ public class MainActivity extends Activity {
                 payload.put("command", command);
                 ApiResponse res = requestApi("POST", "/api/v1/mobile/commands", payload.toString(), true);
                 runOnUiThread(() -> {
+                    if (res.code == 401) {
+                        handleSessionExpired();
+                        return;
+                    }
                     try {
                         JSONObject json = new JSONObject(res.body);
                         boolean isError = res.code >= 400;
@@ -790,6 +1117,7 @@ public class MainActivity extends Activity {
     }
 
     private void sendDirectCommand(String cmd) {
+        directStatusText.setTextColor(Color.parseColor("#047857"));
         directStatusText.setText("Sending " + cmd + "...");
         executor.execute(() -> {
             HttpURLConnection conn = null;
@@ -800,9 +1128,15 @@ public class MainActivity extends Activity {
                 conn.setConnectTimeout(2500);
                 conn.setReadTimeout(2500);
                 int code = conn.getResponseCode();
-                runOnUiThread(() -> directStatusText.setText(code == 200 ? "Sent (" + cmd + ")" : "HTTP " + code));
+                runOnUiThread(() -> {
+                    directStatusText.setTextColor(Color.parseColor(code == 200 ? "#047857" : "#92400E"));
+                    directStatusText.setText(code == 200 ? "Sent (" + cmd + ")" : "HTTP " + code);
+                });
             } catch (Exception e) {
-                runOnUiThread(() -> directStatusText.setText("ESP32 AP unreachable (" + getDirectUrl() + ")"));
+                runOnUiThread(() -> {
+                    directStatusText.setTextColor(Color.parseColor("#991B1B"));
+                    directStatusText.setText("ESP32 AP unreachable");
+                });
             } finally {
                 if (conn != null) {
                     conn.disconnect();
@@ -815,8 +1149,12 @@ public class MainActivity extends Activity {
         executor.execute(() -> {
             try {
                 ApiResponse res = requestApi("GET",
-                        "/api/v1/mobile/commands?robot_id=" + getRobotId() + "&page=" + page, null, true);
+                        "/api/v1/mobile/commands?robot_id=" + Uri.encode(getRobotId()) + "&page=" + page, null, true);
                 runOnUiThread(() -> {
+                    if (res.code == 401) {
+                        handleSessionExpired();
+                        return;
+                    }
                     if (res.code != 200) {
                         return;
                     }
@@ -883,15 +1221,14 @@ public class MainActivity extends Activity {
         badge.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
         badge.setTypeface(Typeface.DEFAULT_BOLD);
         badge.setPadding(dp(10), dp(4), dp(10), dp(4));
-        if ("completed".equalsIgnoreCase(status) || "received".equalsIgnoreCase(status)) {
-            badge.setTextColor(Color.parseColor("#065F46"));
-            badge.setBackground(roundedBox("#ECFDF5", "#A7F3D0", dp(99)));
-        } else if ("cancelled".equalsIgnoreCase(status) || "expired".equalsIgnoreCase(status)) {
-            badge.setTextColor(Color.parseColor("#991B1B"));
-            badge.setBackground(roundedBox("#FEF2F2", "#FECACA", dp(99)));
+        if ("completed".equalsIgnoreCase(status) || "received".equalsIgnoreCase(status)
+                || "executed".equalsIgnoreCase(status) || "acknowledged".equalsIgnoreCase(status)) {
+            styleStatusPill(badge, "success");
+        } else if ("cancelled".equalsIgnoreCase(status) || "expired".equalsIgnoreCase(status)
+                || "failed".equalsIgnoreCase(status)) {
+            styleStatusPill(badge, "danger");
         } else {
-            badge.setTextColor(Color.parseColor("#92400E"));
-            badge.setBackground(roundedBox("#FFFBEB", "#FDE68A", dp(99)));
+            styleStatusPill(badge, "warning");
         }
         row.addView(badge);
         card.addView(row);
@@ -947,17 +1284,35 @@ public class MainActivity extends Activity {
         }
     }
 
+    private String normalizeUrl(String raw, boolean preferHttp) {
+        String cleaned = raw == null ? "" : raw.replaceAll("\\s+", "").replaceAll("/+$", "");
+        if (cleaned.isEmpty()) {
+            return preferHttp ? DEFAULT_DIRECT_URL : "";
+        }
+        if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://")) {
+            boolean isLocal = preferHttp
+                    || cleaned.startsWith("192.168.")
+                    || cleaned.startsWith("10.")
+                    || cleaned.startsWith("172.")
+                    || cleaned.startsWith("127.")
+                    || cleaned.startsWith("localhost");
+            cleaned = (isLocal ? "http://" : "https://") + cleaned;
+        }
+        return cleaned;
+    }
+
     private boolean isAuthenticated() {
         String token = prefs.getString(KEY_TOKEN, "");
         return token != null && !token.isEmpty();
     }
 
     private String getBaseUrl() {
-        return prefs.getString(KEY_BASE_URL, DEFAULT_BASE_URL).replaceAll("/+$", "");
+        return prefs.getString(KEY_BASE_URL, "").replaceAll("/+$", "");
     }
 
     private String getDirectUrl() {
-        return prefs.getString(KEY_DIRECT_URL, DEFAULT_DIRECT_URL).replaceAll("/+$", "");
+        String url = prefs.getString(KEY_DIRECT_URL, DEFAULT_DIRECT_URL).replaceAll("/+$", "");
+        return url.isEmpty() ? DEFAULT_DIRECT_URL : url;
     }
 
     private String getRobotId() {
@@ -966,14 +1321,53 @@ public class MainActivity extends Activity {
     }
 
     private void updateHeaderSubtitle() {
-        headerSubtitle.setText(getRobotId() + " • " + getBaseUrl().replaceFirst("^https?://", ""));
+        String base = getBaseUrl().replaceFirst("^https?://", "");
+        if (base.isEmpty()) {
+            headerSubtitle.setText("Native Android Controller");
+        } else {
+            headerSubtitle.setText(getRobotId() + " • " + base);
+        }
     }
 
     private void showBanner(String message, boolean isError) {
+        if (hideBannerRunnable != null) {
+            mainHandler.removeCallbacks(hideBannerRunnable);
+        }
         statusBanner.setText(message);
         statusBanner.setTextColor(Color.parseColor(isError ? "#991B1B" : "#065F46"));
         statusBanner.setBackgroundColor(Color.parseColor(isError ? "#FEF2F2" : "#ECFDF5"));
         statusBanner.setVisibility(View.VISIBLE);
+        if (!isError) {
+            hideBannerRunnable = () -> statusBanner.setVisibility(View.GONE);
+            mainHandler.postDelayed(hideBannerRunnable, 4000L);
+        }
+    }
+
+    private void styleStatusPill(TextView pill, String tone) {
+        if ("success".equals(tone)) {
+            pill.setTextColor(Color.parseColor("#065F46"));
+            pill.setBackground(roundedBox("#ECFDF5", "#A7F3D0", dp(99)));
+        } else if ("danger".equals(tone)) {
+            pill.setTextColor(Color.parseColor("#991B1B"));
+            pill.setBackground(roundedBox("#FEF2F2", "#FECACA", dp(99)));
+        } else if ("warning".equals(tone)) {
+            pill.setTextColor(Color.parseColor("#92400E"));
+            pill.setBackground(roundedBox("#FFFBEB", "#FDE68A", dp(99)));
+        } else {
+            pill.setTextColor(Color.parseColor("#52525B"));
+            pill.setBackground(roundedBox("#F4F4F5", "#E4E4E7", dp(99)));
+        }
+    }
+
+    private TextView createMetricChip(String text) {
+        TextView tv = new TextView(this);
+        tv.setText(text);
+        tv.setTextColor(Color.parseColor("#3F3F46"));
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        tv.setTypeface(Typeface.DEFAULT_BOLD);
+        tv.setPadding(dp(10), dp(7), dp(10), dp(7));
+        tv.setBackground(roundedBox("#F4F4F5", "#E4E4E7", dp(10)));
+        return tv;
     }
 
     private LinearLayout createCard() {
@@ -1001,13 +1395,15 @@ public class MainActivity extends Activity {
         return tv;
     }
 
-    private EditText createInput(String initial, int inputType) {
+    private EditText createInput(String initial, String hint, int inputType) {
         EditText et = new EditText(this);
         et.setText(initial);
+        et.setHint(hint);
+        et.setHintTextColor(Color.parseColor("#A1A1AA"));
         et.setInputType(inputType);
         et.setTextColor(Color.parseColor("#18181B"));
         et.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-        et.setPadding(dp(12), dp(10), dp(12), dp(10));
+        et.setPadding(dp(12), dp(11), dp(12), dp(11));
         et.setBackground(roundedBox("#FFFFFF", "#D4D4D8", dp(12)));
         return et;
     }

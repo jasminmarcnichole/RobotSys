@@ -62,8 +62,8 @@
             @forelse ($recentCommands as $command)
                 @php
                     $commandTone = match (strtolower($command->status)) {
-                        'completed', 'executed', 'acknowledged' => 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-                        'failed', 'cancelled' => 'bg-red-50 text-red-700 ring-red-200',
+                        'completed', 'received', 'executed', 'acknowledged' => 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+                        'failed', 'cancelled', 'expired' => 'bg-red-50 text-red-700 ring-red-200',
                         'pending', 'queued' => 'bg-amber-50 text-amber-800 ring-amber-200',
                         default => 'bg-zinc-100 text-zinc-600 ring-zinc-200',
                     };

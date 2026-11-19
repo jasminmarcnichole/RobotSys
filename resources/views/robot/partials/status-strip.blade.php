@@ -12,7 +12,7 @@
         <span class="hidden h-7 w-px bg-zinc-200 sm:block" aria-hidden="true"></span>
         <span id="connection_status" class="status-badge bg-zinc-100 text-zinc-600 ring-zinc-200" role="status">
             <span class="size-1.5 shrink-0 rounded-full bg-current" aria-hidden="true"></span>
-            Connecting
+            <span data-status-label>Connecting</span>
         </span>
         <button id="refreshDashboardButton" type="button" class="icon-button size-9 min-h-9 min-w-9" title="Refresh dashboard" aria-label="Refresh dashboard">
             <img src="{{ asset('icons/refresh-cw.svg') }}" class="size-4" alt="" aria-hidden="true">

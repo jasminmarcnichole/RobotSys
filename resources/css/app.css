@@ -146,13 +146,22 @@
         user-select: none;
     }
 
+    [data-direct-drive] {
+        touch-action: none;
+        -webkit-touch-callout: none;
+    }
+
+    .button.is-driving {
+        @apply scale-95 border-emerald-600 bg-emerald-50 text-emerald-950 ring-2 ring-emerald-500/35;
+    }
+
     .status-badge {
         @apply inline-flex min-h-6 max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium leading-4 ring-1 ring-inset;
         overflow-wrap: anywhere;
     }
 
     #movement_status {
-        max-width: 10rem;
+        max-width: 14rem;
         overflow-wrap: anywhere;
     }
 
