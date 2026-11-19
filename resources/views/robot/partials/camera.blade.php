@@ -1,10 +1,14 @@
 <section id="camera" class="{{ $activePage === 'camera' ? 'control-panel' : '' }} flex flex-col gap-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3">
             <h2 class="text-base font-semibold">Camera Detection</h2>
             <span id="camera_status" class="status-badge bg-zinc-100 text-zinc-600 ring-zinc-200" role="status">
                 <span class="size-1.5 shrink-0 rounded-full bg-current" aria-hidden="true"></span>
                 Camera off
+            </span>
+            <span id="cameraEngineBadge" class="status-badge bg-zinc-100 text-zinc-600 ring-zinc-200" role="status">
+                <span class="size-1.5 shrink-0 rounded-full bg-current" aria-hidden="true"></span>
+                Engine: Idle
             </span>
         </div>
         <div class="flex flex-wrap items-center gap-2">

@@ -87,6 +87,7 @@ export function setupCamera(dashboard) {
 
     const message = (text, tone = 'secondary') => setMessage(get('cameraMessage'), text, tone);
     const status = (label, tone = 'secondary') => setPill(get('camera_status'), tone, label);
+    const engineStatus = (label, tone = 'secondary') => setPill(get('cameraEngineBadge'), tone, label);
     const threshold = () => Number(get('cameraThreshold')?.value ?? 35) / 100;
     const selectedDetection = () => lastFrame?.detections[selectedIndex];
     const setDisabled = (id, disabled) => { if (get(id)) { get(id).disabled = disabled; } };
@@ -254,6 +255,17 @@ export function setupCamera(dashboard) {
         get('cameraConfidenceBar').style.width = `${confidence}%`;
         setText('cameraObjectCount', lastFrame?.detections.length ?? 0);
         setText('cameraInferenceTime', lastFrame ? Math.round(lastFrame.inferenceMs) : '--');
+        if (lastFrame?.engine) {
+            const tone = lastFrame.engineMode === 'backend'
+                ? 'success'
+                : (lastFrame.engineMode === 'fallback' ? 'warning' : 'info');
+            engineStatus(lastFrame.engine, tone);
+            const activeModelName = dashboard.vision.models[lastFrame.modelId]?.name ?? dashboard.vision.models[modelId].name;
+            const runtimeLabel = lastFrame.engineMode === 'browser' ? 'TensorFlow Lite' : lastFrame.engine;
+            setText('cameraActiveModel', `${runtimeLabel} / ${activeModelName}`);
+        } else {
+            engineStatus('Engine: Idle', 'secondary');
+        }
         if (detection && lastFrame?.canvas) {
             const aim = getAimDirection(detection, lastFrame.canvas);
             const bin = getTargetBin(detection);
@@ -411,7 +423,16 @@ export function setupCamera(dashboard) {
         if (mode === 'live' && performance.now() - startedAt > frameTimeout) {
             throw new Error('Detection took too long. Resume detection or choose the faster model.');
         }
-        lastFrame = { canvas: frame, rawDetections: normalizeDetections(result, frame), inferenceMs: result.inferenceMs, saved: false, source: frameSource, modelId: frameModel };
+        lastFrame = {
+            canvas: frame,
+            rawDetections: normalizeDetections(result, frame),
+            inferenceMs: result.inferenceMs,
+            engine: result.engine ?? null,
+            engineMode: result.engineMode ?? null,
+            saved: false,
+            source: frameSource,
+            modelId: frameModel,
+        };
         filterDetections();
         return true;
     }
