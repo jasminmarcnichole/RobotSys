@@ -5,8 +5,10 @@ namespace Tests\Feature;
 use App\Models\RobotCommand;
 use App\Models\RobotLog;
 use App\Models\User;
+use App\Providers\AppServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Middleware\TrustProxies;
+use Illuminate\Support\Facades\URL;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -63,6 +65,7 @@ class RobotAppTest extends TestCase
 
     public function test_start_and_reset_require_recent_robot_sensor_telemetry(): void
     {
+        config(['services.robot.control_url' => null]);
         $this->actingAs(User::factory()->admin()->create());
 
         foreach (['START', 'RESET'] as $command) {
@@ -77,6 +80,20 @@ class RobotAppTest extends TestCase
 
         $this->postJson(route('dashboard.robot.control'), ['robot_id' => 'ROBOT-001', 'command' => 'START'])->assertConflict();
         $this->assertDatabaseCount('robot_commands', 0);
+    }
+
+    public function test_direct_wifi_ap_control_url_allows_start_and_reset_without_recent_telemetry(): void
+    {
+        config(['services.robot.control_url' => 'http://192.168.4.1']);
+        $this->actingAs(User::factory()->admin()->create());
+
+        foreach (['START', 'RESET'] as $command) {
+            $this->postJson(route('dashboard.robot.control'), ['robot_id' => 'ROBOT-001', 'command' => $command])
+                ->assertOk()
+                ->assertJsonPath('data.command', $command);
+        }
+
+        $this->assertDatabaseCount('robot_commands', 2);
     }
 
     public function test_app_start_expires_in_five_seconds_and_a_robot_can_acknowledge_before_expiry(): void
@@ -178,5 +195,32 @@ class RobotAppTest extends TestCase
             ->assertSee('https://robotsys.example/app.webmanifest', false);
 
         TrustProxies::flushState();
+    }
+
+    public function test_railway_proxy_headers_generate_https_urls_without_env_override(): void
+    {
+        config(['trustedproxy.proxies' => null]);
+
+        $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.25'])
+            ->withHeaders(['X-Forwarded-Proto' => 'https'])
+            ->get('http://robotsys.example/admin/login')->assertOk()
+            ->assertSee('https://robotsys.example/app.webmanifest', false);
+    }
+
+    public function test_app_service_provider_forces_https_only_in_production(): void
+    {
+        $this->assertStringStartsWith('http://', URL::to('/admin/login'));
+
+        $originalEnvironment = $this->app['env'];
+        $this->app['env'] = 'production';
+        (new AppServiceProvider($this->app))->boot();
+
+        try {
+            $this->assertStringStartsWith('https://', URL::to('/admin/login'));
+            $this->assertStringStartsWith('https://', asset('app.webmanifest'));
+        } finally {
+            $this->app['env'] = $originalEnvironment;
+            URL::forceScheme(null);
+        }
     }
 }
