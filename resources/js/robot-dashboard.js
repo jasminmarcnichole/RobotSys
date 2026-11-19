@@ -27,16 +27,29 @@ if (dashboard) {
     let latestDetectionId = dashboard.latestDetection?.id ?? null;
 
     const robotControlBase = (dashboard.urls?.robotControl || 'http://192.168.4.1').replace(/\/+$/, '');
+    const robotControlHost = (() => {
+        try {
+            return new URL(robotControlBase).host;
+        } catch {
+            return robotControlBase.replace(/^https?:\/\//, '');
+        }
+    })();
+    const isMixedContentDirect = window.location.protocol === 'https:' && robotControlBase.startsWith('http://');
 
     async function sendDirectRobotCmd(c) {
+        if (isMixedContentDirect) {
+            setText('directRobotStatus', 'Blocked on HTTPS (use Cloud Queue or APK)');
+            return null;
+        }
         try {
             const res = await fetch(`${robotControlBase}/cmd?c=${encodeURIComponent(c)}`, {
                 method: 'GET',
                 mode: 'cors',
                 cache: 'no-store',
+                signal: AbortSignal.timeout(3000),
             });
             const txt = await res.text();
-            setText('directRobotStatus', txt);
+            setText('directRobotStatus', txt || `Sent (${c})`);
             if (c === 'A') {
                 setPill(document.getElementById('movement_status'), 'success', 'Autonomous Mode (Ultrasonic)');
                 setText('command_reported_state', 'Autonomous Mode (Ultrasonic)');
@@ -46,13 +59,13 @@ if (dashboard) {
             }
             return txt;
         } catch {
-            setText('directRobotStatus', 'Offline (192.168.4.1)');
+            setText('directRobotStatus', `Offline (${robotControlHost})`);
             return null;
         }
     }
 
     function robotReady() {
-        if (dashboard.urls?.robotControl) {
+        if (dashboard.urls?.robotControl && !isMixedContentDirect) {
             return true;
         }
         const age = Date.now() - Date.parse(controlTelemetry?.created_at ?? '');
@@ -68,10 +81,16 @@ if (dashboard) {
         });
         const readiness = document.querySelector('[data-control-readiness]');
         if (readiness) {
-            setMessage(readiness, ready
-                ? 'Direct Wi-Fi Control active (192.168.4.1). START enables Autonomous Ultrasonic Mode; STOP halts immediately.'
-                : 'Waiting for recent robot telemetry. START and RESET are unavailable; STOP can still be queued.',
-            ready ? 'success' : 'warning');
+            if (isMixedContentDirect && !ready) {
+                setMessage(readiness, `Cloud HTTPS active — direct local Wi-Fi (${robotControlHost}) is blocked by browser security. Use the Android APK for local Wi-Fi steering, or wait for cloud telemetry to queue commands.`, 'info');
+            } else {
+                setMessage(readiness, ready
+                    ? (isMixedContentDirect
+                        ? 'Cloud telemetry connected. START, STOP, and RESET commands will queue through the server.'
+                        : `Direct Wi-Fi Control active (${robotControlHost}). START enables Autonomous Ultrasonic Mode; STOP halts immediately.`)
+                    : 'Waiting for recent robot telemetry. START and RESET are unavailable; STOP can still be queued.',
+                ready ? 'success' : 'warning');
+            }
         }
     }
 
@@ -153,7 +172,15 @@ if (dashboard) {
             meta.className = 'mt-1 text-xs text-zinc-500';
             meta.textContent = new Date(command.created_at).toLocaleTimeString();
             const badge = document.createElement('span');
-            setPill(badge, command.status === 'completed' ? 'success' : command.status === 'failed' ? 'danger' : 'secondary', command.status);
+            const normalizedStatus = String(command.status ?? '').toLowerCase();
+            const badgeTone = ['completed', 'received', 'executed', 'acknowledged'].includes(normalizedStatus)
+                ? 'success'
+                : ['failed', 'cancelled', 'expired'].includes(normalizedStatus)
+                    ? 'danger'
+                    : ['pending', 'queued'].includes(normalizedStatus)
+                        ? 'warning'
+                        : 'secondary';
+            setPill(badge, badgeTone, command.status);
             content.append(title, meta);
             row.append(content, badge);
             return row;
@@ -230,11 +257,13 @@ if (dashboard) {
             }).catch(() => null);
 
             if (espResponse) {
-                setMessage(commandMessage, `${command} sent to Main ESP32 (192.168.4.1): ${espResponse}`, 'success');
+                setMessage(commandMessage, `${command} sent to Main ESP32 (${robotControlHost}): ${espResponse}`, 'success');
             } else if (result?.success) {
-                setMessage(commandMessage, `${command} queued in database (Main ESP32 192.168.4.1 unreachable).`, 'warning');
+                setMessage(commandMessage, isMixedContentDirect
+                    ? `${command} queued in cloud database (direct local Wi-Fi requires HTTP or the Android APK).`
+                    : `${command} queued in database (Main ESP32 ${robotControlHost} unreachable).`, 'warning');
             } else {
-                throw new Error('Could not reach Main ESP32 (192.168.4.1) or queue command.');
+                throw new Error(`Could not reach Main ESP32 (${robotControlHost}) or queue command.`);
             }
             refresh();
         } catch (error) {
@@ -248,11 +277,36 @@ if (dashboard) {
     commandButtons.forEach((button) => button.addEventListener('click', () => sendCommand(button.dataset.command)));
     document.querySelectorAll('[data-direct-drive]').forEach((btn) => {
         const c = btn.dataset.directDrive;
-        btn.addEventListener('mousedown', () => sendDirectRobotCmd(c));
-        btn.addEventListener('mouseup', () => sendDirectRobotCmd('S'));
-        btn.addEventListener('mouseleave', () => sendDirectRobotCmd('S'));
-        btn.addEventListener('touchstart', (e) => { e.preventDefault(); sendDirectRobotCmd(c); });
-        btn.addEventListener('touchend', (e) => { e.preventDefault(); sendDirectRobotCmd('S'); });
+        let activePointerId = null;
+
+        const startDrive = (event) => {
+            if (activePointerId !== null) {
+                return;
+            }
+            event.preventDefault();
+            activePointerId = event.pointerId;
+            try {
+                btn.setPointerCapture(event.pointerId);
+            } catch {
+                // Ignore if pointer capture is unavailable
+            }
+            btn.classList.add('is-driving');
+            sendDirectRobotCmd(c);
+        };
+
+        const stopDrive = (event) => {
+            if (activePointerId === null || (event?.pointerId !== undefined && event.pointerId !== activePointerId)) {
+                return;
+            }
+            activePointerId = null;
+            btn.classList.remove('is-driving');
+            sendDirectRobotCmd('S');
+        };
+
+        btn.addEventListener('pointerdown', startDrive);
+        btn.addEventListener('pointerup', stopDrive);
+        btn.addEventListener('pointercancel', stopDrive);
+        btn.addEventListener('lostpointercapture', stopDrive);
     });
     document.querySelectorAll('[data-direct-cmd]').forEach((btn) => {
         btn.addEventListener('click', () => sendDirectRobotCmd(btn.dataset.directCmd));
@@ -359,6 +413,11 @@ if (dashboard) {
         };
 
         const fetchArmEndpoint = async (path, statusText, options = {}) => {
+            if (isMixedContentDirect) {
+                updateSummaryText();
+                setText('armCalibrationStatus', `Saved locally (direct Wi-Fi ${robotControlHost} blocked on HTTPS)`);
+                return null;
+            }
             if (statusText) {
                 setText('armCalibrationStatus', statusText);
             }
@@ -367,6 +426,7 @@ if (dashboard) {
                     method: 'GET',
                     mode: 'cors',
                     cache: 'no-store',
+                    signal: AbortSignal.timeout(3000),
                 });
                 const cfg = await res.json();
                 applyArmConfig(cfg, options);
@@ -374,7 +434,7 @@ if (dashboard) {
                 return cfg;
             } catch {
                 updateSummaryText();
-                setText('armCalibrationStatus', 'Saved locally (Main ESP32 192.168.4.1 offline)');
+                setText('armCalibrationStatus', `Saved locally (Main ESP32 ${robotControlHost} offline)`);
                 return null;
             }
         };

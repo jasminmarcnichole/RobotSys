@@ -11,7 +11,10 @@
         <article class="metric-card">
             <div class="metric-heading"><h3>Battery level</h3><img src="{{ asset('icons/battery.svg') }}" class="size-4" alt="" aria-hidden="true"></div>
             <p class="metric-value"><span id="battery_level">{{ $latestLog ? number_format($batteryLevel, 0) : '--' }}</span><span class="metric-unit">%</span></p>
-            <div class="progress-track mt-4"><span id="battery_bar" class="progress-fill bg-emerald-600" style="width: {{ min(100, max(0, $batteryLevel)) }}%"></span></div>
+            @php
+                $batteryBarColor = $batteryLevel <= 20 ? 'bg-red-600' : ($batteryLevel <= 45 ? 'bg-amber-500' : 'bg-emerald-600');
+            @endphp
+            <div class="progress-track mt-4"><span id="battery_bar" class="progress-fill {{ $batteryBarColor }}" style="width: {{ min(100, max(0, $batteryLevel)) }}%"></span></div>
             <p class="mt-3 text-xs text-zinc-500">Latest reported charge</p>
         </article>
         <article class="metric-card">
