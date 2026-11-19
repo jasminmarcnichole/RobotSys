@@ -13,7 +13,7 @@
 
 <aside class="app-sidebar" aria-label="Sidebar">
     <a href="{{ route('robot.dashboard', ['robot_id' => $robotId]) }}" class="flex min-h-16 items-center gap-3 border-b border-zinc-200/80 px-5">
-        <span class="brand-mark size-9 rounded-xl text-xs">RS</span>
+        <img src="{{ asset('icons/robotsys-logo.png') }}" alt="" aria-hidden="true" class="size-9 shrink-0 rounded-xl shadow-xs ring-1 ring-emerald-950/15">
         <span class="text-base font-semibold tracking-tight text-zinc-950">RobotSys<span class="block text-[11px] font-normal text-zinc-500">Operations console</span></span>
     </a>
     <nav class="flex flex-col gap-1 px-3 py-5" aria-label="Dashboard pages">
@@ -45,7 +45,10 @@
                 <img src="{{ asset('icons/menu.svg') }}" class="size-5" alt="" aria-hidden="true">
             </summary>
             <nav class="mobile-navigation-panel" aria-label="Dashboard pages">
-                <a href="{{ route('robot.dashboard', ['robot_id' => $robotId]) }}" class="mb-3 block px-3 text-lg font-semibold">RobotSys</a>
+                <a href="{{ route('robot.dashboard', ['robot_id' => $robotId]) }}" class="mb-3 flex items-center gap-2.5 px-3 text-lg font-semibold">
+                    <img src="{{ asset('icons/robotsys-logo.png') }}" alt="" aria-hidden="true" class="size-8 shrink-0 rounded-lg shadow-xs ring-1 ring-emerald-950/15">
+                    <span>RobotSys</span>
+                </a>
                 @foreach ($dashboardPages as $pageKey => $page)
                     @continue(in_array($pageKey, ['camera', 'commands'], true))
                     <a href="{{ route($page['route'], ['robot_id' => $robotId]) }}" class="nav-link {{ $activePage === $pageKey ? 'is-active' : '' }}" @if ($activePage === $pageKey) aria-current="page" @endif>
