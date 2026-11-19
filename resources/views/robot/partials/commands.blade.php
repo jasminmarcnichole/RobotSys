@@ -88,6 +88,13 @@
                 <p class="mt-0.5 text-xs text-zinc-500">Move each servo live to test trash reach &amp; grip, then save the angles permanently to ESP32 flash.</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
+                <label for="armServoSpeedSelect" class="text-xs font-medium text-zinc-600">Servo Speed:</label>
+                <select id="armServoSpeedSelect" class="form-input min-h-8 w-auto py-1 text-xs">
+                    <option value="45">Ultra Gentle (45 ms/deg &mdash; No Sway)</option>
+                    <option value="30" selected>Slow &amp; Smooth (30 ms/deg &mdash; Default)</option>
+                    <option value="20">Medium (20 ms/deg)</option>
+                    <option value="12">Fast (12 ms/deg)</option>
+                </select>
                 <span id="armCalibrationStatus" class="text-xs font-medium text-zinc-600">Ready</span>
                 <button type="button" id="syncArmConfigBtn" class="button button-secondary min-h-8 px-3 text-xs">Sync from Robot</button>
             </div>
@@ -137,9 +144,9 @@
             <div class="rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-3">
                 <p class="text-xs font-semibold text-zinc-800">Save Current Slider Position As (Permanent in Flash)</p>
                 <div class="mt-2 flex flex-wrap gap-2">
-                    <button type="button" data-arm-save="home" class="button button-primary min-h-8 px-3 text-xs">Save Home (Ch 0-4)</button>
-                    <button type="button" data-arm-save="front" class="button button-primary min-h-8 px-3 text-xs">Save Front Reach (Ch 1-4)</button>
-                    <button type="button" data-arm-save="rear" class="button button-primary min-h-8 px-3 text-xs">Save Rear Drop (Ch 1-4)</button>
+                    <button type="button" data-arm-save="home" class="button button-primary min-h-8 px-3 text-xs">Save Home (All 6 Ch)</button>
+                    <button type="button" data-arm-save="front" class="button button-primary min-h-8 px-3 text-xs">Save Front Reach (All 6 Ch)</button>
+                    <button type="button" data-arm-save="rear" class="button button-primary min-h-8 px-3 text-xs">Save Rear Drop (All 6 Ch)</button>
                     <button type="button" data-arm-save="open" class="button button-secondary min-h-8 px-3 text-xs">Save Grip Open (Ch 5)</button>
                     <button type="button" data-arm-save="closed" class="button button-secondary min-h-8 px-3 text-xs">Save Grip Closed (Ch 5)</button>
                     <button type="button" id="resetArmCalibrationBtn" class="button button-danger min-h-8 px-3 text-xs">Reset Defaults</button>

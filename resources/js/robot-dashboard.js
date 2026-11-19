@@ -260,30 +260,105 @@ if (dashboard) {
 
     // 6-DOF Arm Live Servo Angle & Pose Calibration Controls (192.168.4.1)
     const servoRanges = [0, 1, 2, 3, 4, 5].map((ch) => document.querySelector(`[data-servo-range="${ch}"]`));
+    const speedSelect = document.getElementById('armServoSpeedSelect');
     const hasArmCalibration = servoRanges.some(Boolean);
     if (hasArmCalibration) {
-        const applyArmConfig = (cfg) => {
-            if (!cfg?.ok) {
-                return;
+        const STORAGE_KEY = 'robotSys_armPoses_v2';
+        const defaultPoses = () => ({
+            home: [110, 90, 90, 90, 90, 40],
+            front: [110, 135, 125, 115, 90, 40],
+            rear: [135, 45, 50, 60, 90, 130],
+            gripperOpen: 40,
+            gripperClosed: 130,
+            stepDelay: 30,
+        });
+
+        let savedPoses = defaultPoses();
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed?.home) && parsed.home.length === 6) savedPoses.home = parsed.home;
+                if (Array.isArray(parsed?.front) && parsed.front.length === 6) savedPoses.front = parsed.front;
+                if (Array.isArray(parsed?.rear) && parsed.rear.length === 6) savedPoses.rear = parsed.rear;
+                if (Number.isFinite(parsed?.gripperOpen)) savedPoses.gripperOpen = parsed.gripperOpen;
+                if (Number.isFinite(parsed?.gripperClosed)) savedPoses.gripperClosed = parsed.gripperClosed;
+                if (Number.isFinite(parsed?.stepDelay)) savedPoses.stepDelay = parsed.stepDelay;
             }
-            if (Array.isArray(cfg.current)) {
-                cfg.current.forEach((angle, ch) => {
-                    const range = servoRanges[ch];
-                    if (range) {
-                        range.value = String(angle);
-                    }
-                    setText(`armServoValue${ch}`, `${angle}°`);
-                });
-            }
-            if (Array.isArray(cfg.home) && Array.isArray(cfg.front) && Array.isArray(cfg.rear)) {
-                setText(
-                    'armSavedPosesSummary',
-                    `Saved -> Home [${cfg.home.slice(0, 5).join(', ')}] | Front Reach Ch1-4 [${cfg.front.join(', ')}] | Rear Drop Ch1-4 [${cfg.rear.join(', ')}] | Gripper Open ${cfg.gripperOpen}° / Closed ${cfg.gripperClosed}°`
-                );
+        } catch {
+            // Ignore localStorage parse errors
+        }
+
+        const persistLocalPoses = () => {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(savedPoses));
+            } catch {
+                // Ignore localStorage write errors
             }
         };
 
-        const fetchArmEndpoint = async (path, statusText) => {
+        const setSlidersTo = (angles) => {
+            if (!Array.isArray(angles)) {
+                return;
+            }
+            angles.forEach((angle, ch) => {
+                const clamped = Math.max(0, Math.min(180, Math.round(Number(angle) || 0)));
+                const range = servoRanges[ch];
+                if (range) {
+                    range.value = String(clamped);
+                }
+                setText(`armServoValue${ch}`, `${clamped}°`);
+            });
+        };
+
+        const getSliderAngles = () =>
+            servoRanges.map((range, ch) => Math.max(0, Math.min(180, Math.round(Number(range?.value ?? savedPoses.home[ch]) || 0))));
+
+        const updateSummaryText = () => {
+            if (speedSelect) {
+                speedSelect.value = String(savedPoses.stepDelay);
+            }
+            setText(
+                'armSavedPosesSummary',
+                `Saved -> Home [${savedPoses.home.join(', ')}] | Front Reach [${savedPoses.front.join(', ')}] | Rear Drop [${savedPoses.rear.join(', ')}] | Grip Open ${savedPoses.gripperOpen}° / Closed ${savedPoses.gripperClosed}° | Speed ${savedPoses.stepDelay} ms/deg`
+            );
+        };
+
+        const applyArmConfig = (cfg, { updateSliders = true, preferLocalPoses = false } = {}) => {
+            if (!cfg?.ok) {
+                updateSummaryText();
+                return;
+            }
+            if (updateSliders && Array.isArray(cfg.current) && cfg.current.length === 6) {
+                setSlidersTo(cfg.current);
+            }
+            if (!preferLocalPoses) {
+                if (Array.isArray(cfg.home) && cfg.home.length === 6) {
+                    savedPoses.home = cfg.home.map(Number);
+                }
+                if (Array.isArray(cfg.front)) {
+                    if (cfg.front.length === 6) {
+                        savedPoses.front = cfg.front.map(Number);
+                    } else if (cfg.front.length === 4) {
+                        savedPoses.front = [savedPoses.front[0] ?? savedPoses.home[0], ...cfg.front.map(Number), savedPoses.gripperOpen];
+                    }
+                }
+                if (Array.isArray(cfg.rear)) {
+                    if (cfg.rear.length === 6) {
+                        savedPoses.rear = cfg.rear.map(Number);
+                    } else if (cfg.rear.length === 4) {
+                        savedPoses.rear = [savedPoses.rear[0] ?? savedPoses.home[0], ...cfg.rear.map(Number), savedPoses.gripperClosed];
+                    }
+                }
+                if (Number.isFinite(cfg.gripperOpen)) savedPoses.gripperOpen = Number(cfg.gripperOpen);
+                if (Number.isFinite(cfg.gripperClosed)) savedPoses.gripperClosed = Number(cfg.gripperClosed);
+                if (Number.isFinite(cfg.stepDelay)) savedPoses.stepDelay = Number(cfg.stepDelay);
+                persistLocalPoses();
+            }
+            updateSummaryText();
+        };
+
+        const fetchArmEndpoint = async (path, statusText, options = {}) => {
             if (statusText) {
                 setText('armCalibrationStatus', statusText);
             }
@@ -294,17 +369,19 @@ if (dashboard) {
                     cache: 'no-store',
                 });
                 const cfg = await res.json();
-                applyArmConfig(cfg);
+                applyArmConfig(cfg, options);
                 setText('armCalibrationStatus', statusText ? `${statusText.replace('...', '')} OK` : 'Synced');
                 return cfg;
             } catch {
-                setText('armCalibrationStatus', 'Main ESP32 (192.168.4.1) offline');
+                updateSummaryText();
+                setText('armCalibrationStatus', 'Saved locally (Main ESP32 192.168.4.1 offline)');
                 return null;
             }
         };
 
-        let lastServoSentAt = 0;
-        let servoSendTimer = null;
+        // Per-channel throttle timers so moving multiple sliders never cancels another channel's command
+        const lastServoSentAt = [0, 0, 0, 0, 0, 0];
+        const servoSendTimers = [null, null, null, null, null, null];
         const sendServoAngle = (ch, angle, immediate = false) => {
             const clamped = Math.max(0, Math.min(180, Math.round(Number(angle) || 0)));
             if (servoRanges[ch]) {
@@ -312,12 +389,15 @@ if (dashboard) {
             }
             setText(`armServoValue${ch}`, `${clamped}°`);
 
-            clearTimeout(servoSendTimer);
+            clearTimeout(servoSendTimers[ch]);
             const now = Date.now();
-            const delay = immediate || (now - lastServoSentAt >= 65) ? 0 : 65;
-            servoSendTimer = setTimeout(() => {
-                lastServoSentAt = Date.now();
-                fetchArmEndpoint(`/servo?ch=${ch}&angle=${clamped}`, `Setting Ch ${ch} -> ${clamped}°...`);
+            const delay = immediate || (now - lastServoSentAt[ch] >= 75) ? 0 : 75;
+            servoSendTimers[ch] = setTimeout(() => {
+                lastServoSentAt[ch] = Date.now();
+                fetchArmEndpoint(`/servo?ch=${ch}&angle=${clamped}`, `Moving Ch ${ch} -> ${clamped}°...`, {
+                    updateSliders: false,
+                    preferLocalPoses: true,
+                });
             }, delay);
         };
 
@@ -338,31 +418,98 @@ if (dashboard) {
             });
         });
 
+        speedSelect?.addEventListener('change', () => {
+            const delay = Math.max(8, Math.min(80, Number(speedSelect.value) || 30));
+            savedPoses.stepDelay = delay;
+            persistLocalPoses();
+            updateSummaryText();
+            fetchArmEndpoint(`/arm/speed?delay=${delay}`, `Setting speed (${delay} ms/deg)...`, {
+                updateSliders: false,
+                preferLocalPoses: true,
+            });
+        });
+
         document.querySelectorAll('[data-arm-preview]').forEach((btn) => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 const pose = btn.dataset.armPreview;
-                fetchArmEndpoint(`/arm/preview?pose=${encodeURIComponent(pose)}`, `Moving to ${pose}...`);
+                // Update sliders immediately to the saved pose so the UI always reflects the user's saved settings
+                if (pose === 'home') {
+                    setSlidersTo(savedPoses.home);
+                } else if (pose === 'front') {
+                    setSlidersTo(savedPoses.front);
+                } else if (pose === 'rear') {
+                    setSlidersTo(savedPoses.rear);
+                } else if (pose === 'open') {
+                    const current = getSliderAngles();
+                    current[5] = savedPoses.gripperOpen;
+                    setSlidersTo(current);
+                } else if (pose === 'closed') {
+                    const current = getSliderAngles();
+                    current[5] = savedPoses.gripperClosed;
+                    setSlidersTo(current);
+                }
+
+                const cfg = await fetchArmEndpoint(`/arm/preview?pose=${encodeURIComponent(pose)}`, `Moving to ${pose}...`, {
+                    updateSliders: false,
+                    preferLocalPoses: true,
+                });
+
+                // If ESP32 is still on older 4-channel firmware, send all 6 saved target channels so Ch 0 & Ch 5 also match
+                if (cfg && ['home', 'front', 'rear'].includes(pose) && (!Array.isArray(cfg.front) || cfg.front.length < 6)) {
+                    const target = savedPoses[pose];
+                    for (let ch = 0; ch < 6; ch++) {
+                        await fetch(`${robotControlBase}/servo?ch=${ch}&angle=${target[ch]}`, { method: 'GET', mode: 'cors', cache: 'no-store' }).catch(() => null);
+                    }
+                }
             });
         });
 
         document.querySelectorAll('[data-arm-save]').forEach((btn) => {
             btn.addEventListener('click', () => {
                 const pose = btn.dataset.armSave;
-                fetchArmEndpoint(`/arm/save?pose=${encodeURIComponent(pose)}`, `Saving ${pose} pose...`);
+                const current = getSliderAngles();
+
+                if (pose === 'home') {
+                    savedPoses.home = [...current];
+                } else if (pose === 'front') {
+                    savedPoses.front = [...current];
+                } else if (pose === 'rear') {
+                    savedPoses.rear = [...current];
+                } else if (pose === 'open') {
+                    savedPoses.gripperOpen = current[5];
+                    savedPoses.home[5] = current[5];
+                    savedPoses.front[5] = current[5];
+                } else if (pose === 'closed') {
+                    savedPoses.gripperClosed = current[5];
+                    savedPoses.rear[5] = current[5];
+                }
+                persistLocalPoses();
+                updateSummaryText();
+
+                const query = current.map((val, idx) => `s${idx}=${encodeURIComponent(val)}`).join('&');
+                fetchArmEndpoint(`/arm/save?pose=${encodeURIComponent(pose)}&${query}`, `Saving ${pose} pose...`, {
+                    updateSliders: false,
+                    preferLocalPoses: true,
+                });
             });
         });
 
         document.getElementById('syncArmConfigBtn')?.addEventListener('click', () => {
-            fetchArmEndpoint('/arm/config', 'Syncing...');
+            fetchArmEndpoint('/arm/config', 'Syncing...', { updateSliders: true, preferLocalPoses: false });
         });
 
         document.getElementById('resetArmCalibrationBtn')?.addEventListener('click', () => {
             if (window.confirm('Reset all 6 arm servo poses to default factory angles?')) {
-                fetchArmEndpoint('/arm/reset', 'Resetting defaults...');
+                savedPoses = defaultPoses();
+                persistLocalPoses();
+                setSlidersTo(savedPoses.home);
+                updateSummaryText();
+                fetchArmEndpoint('/arm/reset', 'Resetting defaults...', { updateSliders: true, preferLocalPoses: false });
             }
         });
 
-        fetchArmEndpoint('/arm/config');
+        updateSummaryText();
+        fetchArmEndpoint('/arm/config', null, { updateSliders: true, preferLocalPoses: Boolean(localStorage.getItem(STORAGE_KEY)) });
     }
     document.getElementById('refreshDashboardButton')?.addEventListener('click', refresh);
     document.addEventListener('visibilitychange', () => document.hidden ? clearTimeout(pollTimer) : refresh());
