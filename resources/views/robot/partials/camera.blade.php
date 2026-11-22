@@ -2,14 +2,8 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap items-center gap-3">
             <h2 class="text-base font-semibold">Camera Detection</h2>
-            <span id="camera_status" class="status-badge bg-zinc-100 text-zinc-600 ring-zinc-200" role="status">
-                <span class="size-1.5 shrink-0 rounded-full bg-current" aria-hidden="true"></span>
-                Camera off
-            </span>
-            <span id="cameraEngineBadge" class="status-badge bg-zinc-100 text-zinc-600 ring-zinc-200" role="status">
-                <span class="size-1.5 shrink-0 rounded-full bg-current" aria-hidden="true"></span>
-                Engine: Idle
-            </span>
+            <span id="camera_status" class="status-badge bg-zinc-100 text-zinc-600 ring-zinc-200" role="status"><span class="size-1.5 shrink-0 rounded-full bg-current" aria-hidden="true"></span><span data-status-label>Camera off</span></span>
+            <span id="cameraEngineBadge" class="status-badge bg-zinc-100 text-zinc-600 ring-zinc-200" role="status"><span class="size-1.5 shrink-0 rounded-full bg-current" aria-hidden="true"></span><span data-status-label>Engine: Idle</span></span>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <button type="button" class="button button-secondary" data-camera-expand aria-pressed="false"><img src="{{ asset('icons/eye.svg') }}" class="size-4" alt="" aria-hidden="true"><span data-camera-expand-label>Expand view</span></button>

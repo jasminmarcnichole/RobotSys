@@ -1,7 +1,7 @@
 <header class="portal-header">
     <div class="portal-container flex min-h-20 flex-wrap items-center justify-between gap-3 py-4">
         <a href="{{ auth()->check() ? route('robot.dashboard') : route('login') }}" class="inline-flex shrink-0 items-center gap-3" aria-label="RobotSys home">
-            <span class="brand-mark">RS</span>
+            <img src="{{ asset('icons/robotsys-logo.png') }}" alt="" aria-hidden="true" class="size-10 shrink-0 rounded-xl shadow-xs ring-1 ring-emerald-950/15">
             <span class="text-xl font-semibold tracking-tight">RobotSys<span class="mt-0.5 block text-[10px] font-medium tracking-[0.16em] text-zinc-500 uppercase">Waste collection & monitoring</span></span>
         </a>
         <nav aria-label="Main navigation" class="flex items-center gap-1 sm:gap-3">
