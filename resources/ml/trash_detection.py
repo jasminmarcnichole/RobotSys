@@ -23,6 +23,13 @@ from train_waste import (
 
 NAMES = [CLASSES[index] for index in (1, 2, 3, 4, 5, 6)]
 SETTINGS = {"worker_score_threshold": 0.2, "ui_score_threshold": 0.5, "max_results": 10, "iou": 0.5}
+LIVE_INFER_SETTINGS = {
+    "min_conf": 0.5,
+    "iou": 0.35,
+    "max_det": 2,
+    "min_area_ratio": 0.005,
+    "max_area_ratio": 0.75,
+}
 ROOT = Path(__file__).resolve().parents[2]
 os.environ["YOLO_CONFIG_DIR"] = str(ROOT / "storage/app/private/waste-training/yolo-settings")
 os.environ["YOLO_AUTOINSTALL"] = "false"
@@ -313,16 +320,17 @@ def infer_image_bytes(model, image_bytes: bytes, imgsz: int = 320, conf: float =
     if image is None or image.size == 0:
         raise TrainingError("Unable to decode camera frame.")
     height, width = image.shape[:2]
-    threshold = max(SETTINGS["worker_score_threshold"], min(0.95, float(conf)))
+    frame_area = max(1, height * width)
+    threshold = max(LIVE_INFER_SETTINGS["min_conf"], min(0.95, float(conf)))
     started = time.perf_counter()
     result = model.predict(
         source=image,
         imgsz=imgsz,
         device="cpu",
         conf=threshold,
-        iou=SETTINGS["iou"],
+        iou=LIVE_INFER_SETTINGS["iou"],
         agnostic_nms=True,
-        max_det=SETTINGS["max_results"],
+        max_det=LIVE_INFER_SETTINGS["max_det"],
         save=False,
         verbose=False,
     )[0]
@@ -336,6 +344,9 @@ def infer_image_bytes(model, image_bytes: bytes, imgsz: int = 320, conf: float =
         by = max(0, min(height - 1, round(y1)))
         bw = max(1, min(width - bx, round(x2 - x1)))
         bh = max(1, min(height - by, round(y2 - y1)))
+        area_ratio = (bw * bh) / frame_area
+        if area_ratio < LIVE_INFER_SETTINGS["min_area_ratio"] or area_ratio > LIVE_INFER_SETTINGS["max_area_ratio"]:
+            continue
         detections.append({
             "label": NAMES[cls_index],
             "category_id": cls_index + 1,
@@ -343,6 +354,7 @@ def infer_image_bytes(model, image_bytes: bytes, imgsz: int = 320, conf: float =
             "bbox": {"x": bx, "y": by, "width": bw, "height": bh},
         })
     detections.sort(key=lambda item: item["score"], reverse=True)
+    detections = detections[:LIVE_INFER_SETTINGS["max_det"]]
     return {
         "ok": True,
         "backend": "YOLO26n Calibrated",
@@ -406,7 +418,7 @@ def serve(args) -> None:
                 self._send_json(422, {"ok": False, "message": "Invalid payload size."})
                 return
             raw = self.rfile.read(length)
-            conf = SETTINGS["worker_score_threshold"]
+            conf = LIVE_INFER_SETTINGS["min_conf"]
             content_type = self.headers.get("Content-Type", "")
             try:
                 if "application/json" in content_type:

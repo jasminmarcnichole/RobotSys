@@ -131,7 +131,7 @@ class WasteDatasetPreparationTest extends TestCase
         }
         $command = [$python];
         if (PHP_OS_FAMILY === 'Windows') {
-            $command[] = '-3.11';
+            $command[] = '-3.12';
         }
         $process = new Process([...$command, resource_path('ml/prepare_waste.py'),
             '--annotations-file', $this->directory.'/annotations.json',
@@ -156,7 +156,7 @@ class WasteDatasetPreparationTest extends TestCase
     public function test_prepared_image_cache_preserves_bytes_and_does_not_recompress(): void
     {
         $executable = PHP_OS_FAMILY === 'Windows' ? 'Scripts/python.exe' : 'bin/python';
-        $python = storage_path('app/private/waste-training/.venv/'.$executable);
+        $python = storage_path('app/private/waste-training/yolo-windows-env/'.$executable);
         if (! is_file($python)) {
             $this->markTestSkipped('The isolated image preparation environment is required.');
         }
@@ -188,7 +188,7 @@ PYTHON;
     public function test_unavailable_images_can_be_explicitly_excluded_without_discarding_good_images(): void
     {
         $executable = PHP_OS_FAMILY === 'Windows' ? 'Scripts/python.exe' : 'bin/python';
-        $python = storage_path('app/private/waste-training/.venv/'.$executable);
+        $python = storage_path('app/private/waste-training/yolo-windows-env/'.$executable);
         if (! is_file($python)) {
             $this->markTestSkipped('The isolated image preparation environment is required.');
         }
@@ -462,7 +462,7 @@ JAVASCRIPT;
         if ($python === null) {
             $this->markTestSkipped('Python is required for browser scoring tests.');
         }
-        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.11'] : [$python];
+        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.12'] : [$python];
         $code = <<<'PYTHON'
 import copy, json, sys
 from pathlib import Path
@@ -629,7 +629,7 @@ PYTHON;
     {
         $this->trainingFixture();
         $executable = PHP_OS_FAMILY === 'Windows' ? 'Scripts/python.exe' : 'bin/python';
-        $python = storage_path('app/private/waste-training/.venv/'.$executable);
+        $python = storage_path('app/private/waste-training/yolo-windows-env/'.$executable);
         if (! is_file($python)) {
             $this->markTestSkipped('The preparation environment with Pillow is required.');
         }
@@ -922,7 +922,7 @@ PYTHON;
     {
         $this->trainingFixture();
         $executable = PHP_OS_FAMILY === 'Windows' ? 'Scripts/python.exe' : 'bin/python';
-        $python = storage_path('app/private/waste-training/.venv/'.$executable);
+        $python = storage_path('app/private/waste-training/yolo-windows-env/'.$executable);
         if (! is_file($python)) {
             $this->markTestSkipped('The preparation environment with Pillow is required.');
         }
@@ -1106,7 +1106,7 @@ PYTHON;
     {
         $this->trainingFixture();
         $executable = PHP_OS_FAMILY === 'Windows' ? 'Scripts/python.exe' : 'bin/python';
-        $python = storage_path('app/private/waste-training/.venv/'.$executable);
+        $python = storage_path('app/private/waste-training/yolo-windows-env/'.$executable);
         if (! is_file($python)) {
             $this->markTestSkipped('The preparation environment with Pillow is required.');
         }
@@ -1332,7 +1332,7 @@ PYTHON;
     {
         $this->trainingFixture();
         $executable = PHP_OS_FAMILY === 'Windows' ? 'Scripts/python.exe' : 'bin/python';
-        $python = storage_path('app/private/waste-training/.venv/'.$executable);
+        $python = storage_path('app/private/waste-training/yolo-windows-env/'.$executable);
         if (! is_file($python)) {
             $this->markTestSkipped('The preparation environment with Pillow is required.');
         }
@@ -1434,7 +1434,7 @@ PYTHON;
         if ($python === null) {
             $this->markTestSkipped('Python is required for training resume tests.');
         }
-        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.11'] : [$python];
+        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.12'] : [$python];
         $code = <<<'PYTHON'
 import json, sys
 from pathlib import Path
@@ -1608,7 +1608,7 @@ PYTHON;
         if ($python === null) {
             $this->markTestSkipped('Python is required for primary-label validation tests.');
         }
-        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.11'] : [$python];
+        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.12'] : [$python];
         $code = <<<'PYTHON'
 import copy, hashlib, sys
 from pathlib import Path
@@ -1675,7 +1675,7 @@ PYTHON;
         if ($python === null) {
             $this->markTestSkipped('Python is required for checkpoint selection tests.');
         }
-        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.11'] : [$python];
+        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.12'] : [$python];
         $code = <<<'PYTHON'
 import argparse, csv, json, math, sys
 from pathlib import Path
@@ -2708,7 +2708,7 @@ PYTHON;
         if ($python === null) {
             $this->markTestSkipped('Python is required for export validation tests.');
         }
-        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.11'] : [$python];
+        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.12'] : [$python];
         $code = <<<'PYTHON'
 import copy, sys, tempfile
 from pathlib import Path
@@ -2806,7 +2806,7 @@ PYTHON;
         if ($python === null) {
             $this->markTestSkipped('Python is required for TFLite evaluation tests.');
         }
-        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.11'] : [$python];
+        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.12'] : [$python];
         $code = <<<'PYTHON'
 import json, sys
 from types import SimpleNamespace as Value
@@ -2987,7 +2987,7 @@ PYTHON;
         if ($python === null) {
             $this->markTestSkipped('Python is required for prediction comparison tests.');
         }
-        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.11'] : [$python];
+        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.12'] : [$python];
         $code = <<<'PYTHON'
 import json, subprocess, sys, tempfile, xml.etree.ElementTree as ET
 from pathlib import Path
@@ -3267,7 +3267,7 @@ PYTHON;
         if ($python === null) {
             $this->markTestSkipped('Python is required for error analysis tests.');
         }
-        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.11'] : [$python];
+        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.12'] : [$python];
         $code = <<<'PYTHON'
 import copy, sys
 sys.path.insert(0, sys.argv[1])
@@ -3360,7 +3360,7 @@ PYTHON;
         if ($python === null) {
             $this->markTestSkipped('Python is required for annotation audit tests.');
         }
-        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.11'] : [$python];
+        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.12'] : [$python];
         $code = <<<'PYTHON'
 import copy, json, sys
 from pathlib import Path
@@ -3438,7 +3438,7 @@ PYTHON;
     public function test_error_analysis_generates_private_reviews_and_rejects_changed_inputs_without_overwriting(): void
     {
         $executable = PHP_OS_FAMILY === 'Windows' ? 'Scripts/python.exe' : 'bin/python';
-        $python = storage_path('app/private/waste-training/.venv/'.$executable);
+        $python = storage_path('app/private/waste-training/yolo-windows-env/'.$executable);
         if (! is_file($python)) {
             $this->markTestSkipped('The isolated Pillow environment is required for review rendering tests.');
         }
@@ -3539,7 +3539,7 @@ PYTHON;
         if ($python === null) {
             $this->markTestSkipped('Python is required for confidence policy tests.');
         }
-        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.11'] : [$python];
+        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.12'] : [$python];
         $code = <<<'PYTHON'
 import copy, sys
 sys.path.insert(0, sys.argv[1])
@@ -3624,7 +3624,7 @@ PYTHON;
         if ($python === null) {
             $this->markTestSkipped('Python is required for calibration command tests.');
         }
-        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.11'] : [$python];
+        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.12'] : [$python];
         $code = <<<'PYTHON'
 import copy, json, sys
 from pathlib import Path
@@ -3884,7 +3884,7 @@ PYTHON;
         if ($python === null) {
             $this->markTestSkipped('Python is required for export validation tests.');
         }
-        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.11'] : [$python];
+        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.12'] : [$python];
         $code = <<<'PYTHON'
 import copy, hashlib, io, json, sys
 from pathlib import Path
@@ -4141,7 +4141,7 @@ PYTHON;
         if ($python === null) {
             $this->markTestSkipped('Python is required for training command tests.');
         }
-        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.11'] : [$python];
+        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.12'] : [$python];
         $code = <<<'PYTHON'
 import hashlib, json, shutil, sys
 from pathlib import Path
@@ -4290,7 +4290,7 @@ PYTHON;
         if ($python === null) {
             $this->markTestSkipped('Python is required for dataset preflight tests.');
         }
-        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.11'] : [$python];
+        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.12'] : [$python];
         $process = new Process([...$command, resource_path('ml/train_waste.py'), '--check-dataset', '--dataset', $this->directory.'/dataset']);
         $process->setTimeout(30)->run();
 

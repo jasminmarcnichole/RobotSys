@@ -88,7 +88,7 @@ export function setupCamera(dashboard) {
     const message = (text, tone = 'secondary') => setMessage(get('cameraMessage'), text, tone);
     const status = (label, tone = 'secondary') => setPill(get('camera_status'), tone, label);
     const engineStatus = (label, tone = 'secondary') => setPill(get('cameraEngineBadge'), tone, label);
-    const threshold = () => Number(get('cameraThreshold')?.value ?? 35) / 100;
+    const threshold = () => Number(get('cameraThreshold')?.value ?? 60) / 100;
     const selectedDetection = () => lastFrame?.detections[selectedIndex];
     const setDisabled = (id, disabled) => { if (get(id)) { get(id).disabled = disabled; } };
 

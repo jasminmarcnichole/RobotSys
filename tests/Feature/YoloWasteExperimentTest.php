@@ -229,7 +229,7 @@ PY);
         if ($python === null) {
             $this->markTestSkipped('Python is required for YOLO experiment guards.');
         }
-        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.11'] : [$python];
+        $command = PHP_OS_FAMILY === 'Windows' ? [$python, '-3.12'] : [$python];
         $process = new Process([...$command, '-', resource_path('ml'), $this->directory]);
         $process->setInput($code)->setTimeout(30)->run();
 

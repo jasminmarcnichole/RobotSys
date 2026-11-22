@@ -91,9 +91,9 @@
                     <div class="field-group">
                         <div class="flex items-center justify-between gap-2">
                             <label for="cameraThreshold" class="field-label">Minimum confidence</label>
-                            <output id="cameraThresholdLabel" for="cameraThreshold" class="text-sm font-semibold tabular-nums text-emerald-800">35%</output>
+                            <output id="cameraThresholdLabel" for="cameraThreshold" class="text-sm font-semibold tabular-nums text-emerald-800">60%</output>
                         </div>
-                        <input type="range" id="cameraThreshold" min="20" max="90" value="35" step="5" class="min-h-10 w-full accent-emerald-700">
+                        <input type="range" id="cameraThreshold" min="20" max="90" value="60" step="5" class="min-h-10 w-full accent-emerald-700">
                     </div>
                     <dl class="grid grid-cols-2 gap-3 rounded-xl border border-zinc-200/70 bg-white p-3 text-xs sm:col-span-2 sm:grid-cols-4">
                         <div><dt class="text-zinc-500">Runtime / model</dt><dd id="cameraActiveModel" class="mt-0.5 font-medium text-zinc-800">TensorFlow Lite / {{ $visionModels[$defaultVisionModel]['name'] }}</dd></div>
