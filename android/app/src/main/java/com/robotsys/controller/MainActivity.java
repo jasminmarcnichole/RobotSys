@@ -112,7 +112,6 @@ public class MainActivity extends Activity {
     private EditText settingsRobotIdInput;
     private TextView directTestResultText;
 
-    private boolean isLandscapeLocked = false;
     private int activeTabIndex = 0;
 
     private final Runnable autoPollRunnable = new Runnable() {
@@ -179,13 +178,16 @@ public class MainActivity extends Activity {
 
     private void applyOrientationLayout(boolean landscape) {
         if (topHeaderBar != null) {
-            topHeaderBar.setPadding(dp(14), dp(landscape ? 8 : 12), dp(14), dp(landscape ? 8 : 12));
+            topHeaderBar.setPadding(dp(14), dp(landscape ? 6 : 12), dp(14), dp(landscape ? 6 : 12));
         }
         if (headerRotateBtn != null) {
             headerRotateBtn.setText(landscape ? "Portrait" : "Landscape");
         }
+        if (telemetryUpdatedText != null) {
+            telemetryUpdatedText.setVisibility(landscape ? View.GONE : View.VISIBLE);
+        }
         if (bottomNavBar != null) {
-            bottomNavBar.setPadding(dp(12), dp(landscape ? 5 : 8), dp(12), dp(landscape ? 6 : 10));
+            bottomNavBar.setPadding(dp(12), dp(landscape ? 4 : 8), dp(12), dp(landscape ? 5 : 10));
         }
         if (controllerDecksContainer != null && wheelDeckCard != null && armDeckCard != null) {
             controllerDecksContainer.setOrientation(landscape ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
@@ -277,10 +279,8 @@ public class MainActivity extends Activity {
         headerRotateBtn.setOnClickListener(v -> {
             v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             if (isLandscape()) {
-                isLandscapeLocked = false;
                 setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
             } else {
-                isLandscapeLocked = true;
                 setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
             }
         });
@@ -616,13 +616,13 @@ public class MainActivity extends Activity {
             v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             setDriveMode(true);
             sendDirectCommand("A");
-            sendApiCommand("START");
+            sendApiCommand("START", true);
         });
         modeManualBtn.setOnClickListener(v -> {
             v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             setDriveMode(false);
             sendDirectCommand("M");
-            sendApiCommand("RESET");
+            sendApiCommand("RESET", true);
         });
 
         LinearLayout.LayoutParams halfL = new LinearLayout.LayoutParams(0, dp(40), 1f);
@@ -800,7 +800,7 @@ public class MainActivity extends Activity {
                 v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                 setDriveMode(false);
                 sendDirectCommand("S");
-                sendApiCommand("STOP");
+                sendApiCommand("STOP", true);
             });
             row.addView(midBtn, c2);
         } else {
@@ -845,6 +845,15 @@ public class MainActivity extends Activity {
     private Button createGamepadActionButton(String label, String fillHex, String textHex, String strokeHex) {
         Button btn = createButton(label, fillHex, textHex, strokeHex, dp(12), 11);
         btn.setPadding(dp(6), dp(4), dp(6), dp(4));
+        btn.setOnTouchListener((v, event) -> {
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                v.setAlpha(0.72f);
+            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                v.setAlpha(1.0f);
+            }
+            return false;
+        });
         return btn;
     }
 
@@ -1068,6 +1077,7 @@ public class MainActivity extends Activity {
             startAutoPolling();
         } else {
             stopAutoPolling();
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
             mainShell.setVisibility(View.GONE);
             loginScreen.setVisibility(View.VISIBLE);
             loginServerInput.setText(prefs.getString(KEY_BASE_URL, ""));
@@ -1263,7 +1273,7 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void sendApiCommand(String command) {
+    private void sendApiCommand(String command, boolean silentOnOffline) {
         executor.execute(() -> {
             try {
                 JSONObject payload = new JSONObject();
@@ -1278,16 +1288,23 @@ public class MainActivity extends Activity {
                     try {
                         JSONObject json = new JSONObject(res.body);
                         boolean isError = res.code >= 400;
+                        if (isError && silentOnOffline && res.code == 409) {
+                            return;
+                        }
                         showBanner(json.optString("message", "Command " + command + " queued."), isError);
                         if (activeTabIndex == 1) {
                             fetchCommandHistory(1);
                         }
                     } catch (Exception e) {
-                        showBanner("Command response HTTP " + res.code, res.code >= 400);
+                        if (!silentOnOffline) {
+                            showBanner("Command response HTTP " + res.code, res.code >= 400);
+                        }
                     }
                 });
             } catch (Exception e) {
-                runOnUiThread(() -> showBanner("Cloud queue offline for " + command + " (direct Wi-Fi still active).", true));
+                if (!silentOnOffline) {
+                    runOnUiThread(() -> showBanner("Cloud queue offline for " + command + " (direct Wi-Fi still active).", true));
+                }
             }
         });
     }
@@ -1517,10 +1534,8 @@ public class MainActivity extends Activity {
         statusBanner.setTextColor(Color.parseColor(isError ? "#991B1B" : "#065F46"));
         statusBanner.setBackgroundColor(Color.parseColor(isError ? "#FEF2F2" : "#ECFDF5"));
         statusBanner.setVisibility(View.VISIBLE);
-        if (!isError) {
-            hideBannerRunnable = () -> statusBanner.setVisibility(View.GONE);
-            mainHandler.postDelayed(hideBannerRunnable, 3500L);
-        }
+        hideBannerRunnable = () -> statusBanner.setVisibility(View.GONE);
+        mainHandler.postDelayed(hideBannerRunnable, isError ? 5000L : 3500L);
     }
 
     private void styleStatusPill(TextView pill, String tone) {

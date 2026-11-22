@@ -113,13 +113,15 @@ class CameraDetectionController extends Controller
             return response()->json(['message' => 'ESP32-CAM did not return a valid snapshot.'], 502);
         }
 
-        $decodedImage = @imagecreatefromstring($image);
+        if (function_exists('imagecreatefromstring')) {
+            $decodedImage = @imagecreatefromstring($image);
 
-        if ($decodedImage === false) {
-            return response()->json(['message' => 'ESP32-CAM returned a damaged or incomplete image.'], 502);
+            if ($decodedImage === false) {
+                return response()->json(['message' => 'ESP32-CAM returned a damaged or incomplete image.'], 502);
+            }
+
+            imagedestroy($decodedImage);
         }
-
-        imagedestroy($decodedImage);
 
         return response($image, 200, [
             'Content-Type' => $dimensions['mime'],

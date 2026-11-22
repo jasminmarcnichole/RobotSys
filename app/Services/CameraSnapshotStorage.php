@@ -34,15 +34,17 @@ class CameraSnapshotStorage
             ]);
         }
 
-        $decodedImage = @imagecreatefromstring($image);
+        if (function_exists('imagecreatefromstring')) {
+            $decodedImage = @imagecreatefromstring($image);
 
-        if ($decodedImage === false) {
-            throw ValidationException::withMessages([
-                'camera_snapshot' => 'The snapshot image is damaged or incomplete.',
-            ]);
+            if ($decodedImage === false) {
+                throw ValidationException::withMessages([
+                    'camera_snapshot' => 'The snapshot image is damaged or incomplete.',
+                ]);
+            }
+
+            imagedestroy($decodedImage);
         }
-
-        imagedestroy($decodedImage);
 
         if ($boundingBox !== null && ($dimensions[0] < $boundingBox['x'] + $boundingBox['width'] || $dimensions[1] < $boundingBox['y'] + $boundingBox['height'])) {
             throw ValidationException::withMessages([
