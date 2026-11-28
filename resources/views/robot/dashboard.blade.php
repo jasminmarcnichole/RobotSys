@@ -41,7 +41,7 @@
         'experimental' => $model['experimental'] ?? false,
         'warning' => $model['warning'] ?? '',
     ])->all();
-    $defaultVisionModel = config('services.robot.vision_default');
+    $defaultVisionModel = $cameraSetting?->detection_model ?? config('services.robot.vision_default');
     if (!is_string($defaultVisionModel) || !array_key_exists($defaultVisionModel, $visionModels)) {
         $defaultVisionModel = 'efficientdet_lite2';
     }
@@ -69,6 +69,9 @@
                 cameraStream: @json(config('services.robot.camera_stream_url')),
                 robotControl: @json(config('services.robot.control_url', 'http://192.168.4.1')),
                 cameraInfer: @json(route('dashboard.camera.infer')),
+                cameraSettings: @json(route('dashboard.camera.settings.update')),
+                cameraSettingsReset: @json(route('dashboard.camera.settings.reset')),
+                datasetCapture: @json(route('dashboard.camera.dataset-capture.store')),
                 visionLatest: @json(route('dashboard.vision.latest')),
             },
             vision: {
@@ -76,6 +79,7 @@
                 models: @json($visionModels),
                 onboardDeviceId: @json(config('services.robot.onboard.device_id', 'CAM-S3-001')),
             },
+            cameraSettings: @json($cameraSetting?->toPayload()),
             robotId: @json($robotId),
             controlApp: @json($activePage === 'control'),
             loadCapacityLimit: @json($loadCapacityLimit),

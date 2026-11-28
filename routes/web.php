@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Auth\AdminAuthenticatedSessionController;
 use App\Http\Controllers\CameraDetectionController;
+use App\Http\Controllers\CameraSettingController;
+use App\Http\Controllers\DatasetCaptureController;
 use App\Http\Controllers\OnboardVisionController;
 use App\Http\Controllers\RobotCommandController;
 use App\Http\Controllers\RobotDashboardController;
@@ -48,6 +50,14 @@ Route::middleware(['auth', 'can:access-admin'])
                 Route::get('/dashboard/camera', 'index')
                     ->defaults('page', 'camera')
                     ->name('robot.dashboard.camera');
+
+                Route::get('/dashboard/camera-settings', 'index')
+                    ->defaults('page', 'camera-settings')
+                    ->name('robot.dashboard.camera-settings');
+
+                Route::get('/dashboard/dataset-capture', 'index')
+                    ->defaults('page', 'dataset-capture')
+                    ->name('robot.dashboard.dataset-capture');
 
                 Route::get('/dashboard/capabilities', 'index')
                     ->defaults('page', 'capabilities')
@@ -96,6 +106,28 @@ Route::middleware(['auth', 'can:access-admin'])
             Route::post('/camera/detections', [CameraDetectionController::class, 'store'])
                 ->middleware('throttle:30,1,robot-camera-save')
                 ->name('dashboard.camera.detections');
+
+            Route::get('/camera/settings', [CameraSettingController::class, 'show'])
+                ->name('dashboard.camera.settings.show');
+
+            Route::put('/camera/settings', [CameraSettingController::class, 'update'])
+                ->middleware('throttle:60,1,robot-camera-settings')
+                ->name('dashboard.camera.settings.update');
+
+            Route::post('/camera/settings/reset', [CameraSettingController::class, 'reset'])
+                ->middleware('throttle:30,1,robot-camera-settings-reset')
+                ->name('dashboard.camera.settings.reset');
+
+            Route::get('/camera/dataset-capture', [DatasetCaptureController::class, 'index'])
+                ->name('dashboard.camera.dataset-capture.index');
+
+            Route::post('/camera/dataset-capture', [DatasetCaptureController::class, 'store'])
+                ->middleware('throttle:120,1,robot-dataset-capture')
+                ->name('dashboard.camera.dataset-capture.store');
+
+            Route::delete('/camera/dataset-capture', [DatasetCaptureController::class, 'destroy'])
+                ->middleware('throttle:60,1,robot-dataset-capture-delete')
+                ->name('dashboard.camera.dataset-capture.destroy');
 
             Route::get('/robot/latest', [RobotLogController::class, 'latest'])
                 ->name('dashboard.robot.latest');

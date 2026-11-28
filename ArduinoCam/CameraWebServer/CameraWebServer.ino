@@ -18,10 +18,15 @@ const char *ssid = "TrashCollector_Robot";
 const char *password = "12345678";
 #endif
 
-// Permanent Static IP on TrashCollector_Robot network (Always 192.168.4.2)
+// Permanent Static IP (Always 192.168.4.2 in BOTH Robot STA mode and Standalone CAM AP mode)
 IPAddress cam_IP(192, 168, 4, 2);
 IPAddress gateway(192, 168, 4, 1);
 IPAddress subnet(255, 255, 255, 0);
+
+// Standalone fallback AP uses a DISTINCT SSID so it never conflicts with Main ESP32's TrashCollector_Robot
+const char *CAM_AP_SSID = "TrashCollector_CAM";
+const char *CAM_AP_PASS = "12345678";
+bool standaloneApMode = false;
 
 unsigned long wifiLostSince = 0;
 bool reconnectAttempted = false;
@@ -67,17 +72,17 @@ void setup() {
   config.pixel_format = PIXFORMAT_JPEG;
 
   if (psramFound()) {
-    Serial.printf("PSRAM found (%u bytes) - using PSRAM frame buffers\n", ESP.getPsramSize());
-    config.frame_size = FRAMESIZE_VGA;
+    Serial.printf("PSRAM found (%u bytes) - using sharp PSRAM frame buffers (up to XGA 1024x768)\n", ESP.getPsramSize());
+    config.frame_size = FRAMESIZE_XGA;
     config.fb_location = CAMERA_FB_IN_PSRAM;
-    config.jpeg_quality = 14;
+    config.jpeg_quality = 10;
     config.fb_count = 2;
     config.grab_mode = CAMERA_GRAB_LATEST;
   } else {
     Serial.println("WARNING: PSRAM not enabled in Tools > PSRAM. Using QVGA in DRAM.");
     config.frame_size = FRAMESIZE_QVGA;
     config.fb_location = CAMERA_FB_IN_DRAM;
-    config.jpeg_quality = 14;
+    config.jpeg_quality = 12;
     config.fb_count = 1;
     config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   }
@@ -110,7 +115,11 @@ void setup() {
       s->set_saturation(s, -2);
     }
     if (config.pixel_format == PIXFORMAT_JPEG) {
-      s->set_framesize(s, FRAMESIZE_QVGA);
+      framesize_t targetSize = (config.frame_size >= FRAMESIZE_SVGA) ? FRAMESIZE_SVGA : config.frame_size;
+      s->set_framesize(s, targetSize);
+      s->set_quality(s, 10);
+      s->set_contrast(s, 1);
+      s->set_sharpness(s, 1);
     }
 #if defined(CAMERA_MODEL_M5STACK_WIDE) || defined(CAMERA_MODEL_M5STACK_ESP32CAM)
     s->set_vflip(s, 1);
@@ -136,28 +145,44 @@ void setup() {
   WiFi.begin(ssid, password);
   WiFi.setTxPower(WIFI_POWER_15dBm);
 
-  Serial.print("Connecting to Main ESP32 Wi-Fi (TrashCollector_Robot)");
+  Serial.print("Looking for Main ESP32 Wi-Fi (TrashCollector_Robot) for 10s");
   int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
     delay(500);
     Serial.print(".");
     attempts++;
-    if (attempts % 20 == 0) {
-      Serial.println("\nRetrying Wi-Fi connection to TrashCollector_Robot...");
-      WiFi.disconnect(false);
-      delay(200);
-      WiFi.config(cam_IP, gateway, subnet);
-      WiFi.begin(ssid, password);
-    }
   }
   Serial.println("");
-  Serial.println("Connected to Main ESP32 Wi-Fi!");
+
+  if (WiFi.status() == WL_CONNECTED) {
+    standaloneApMode = false;
+    Serial.println("Connected to Main ESP32 Wi-Fi!");
+    Serial.print("Camera Ready! Use 'http://");
+    Serial.print(WiFi.localIP());
+    Serial.println("' to connect");
+  } else {
+    standaloneApMode = true;
+    Serial.println("Main ESP32 not found -> starting standalone camera Wi-Fi AP...");
+    WiFi.disconnect(true, true);
+    delay(150);
+    WiFi.mode(WIFI_AP);
+    WiFi.setSleep(false);
+    esp_wifi_set_ps(WIFI_PS_NONE);
+    esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+    esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
+    WiFi.softAPConfig(cam_IP, cam_IP, subnet);
+    WiFi.softAP(CAM_AP_SSID, CAM_AP_PASS, 6, 0, 4);
+    WiFi.setTxPower(WIFI_POWER_15dBm);
+    Serial.print("Standalone AP Ready! Wi-Fi: ");
+    Serial.print(CAM_AP_SSID);
+    Serial.print(" | Pass: ");
+    Serial.println(CAM_AP_PASS);
+    Serial.print("Camera Ready! Use 'http://");
+    Serial.print(WiFi.softAPIP());
+    Serial.println("' to connect");
+  }
 
   startCameraServer();
-
-  Serial.print("Camera Ready! Use 'http://");
-  Serial.print(WiFi.localIP());
-  Serial.println("' to connect");
 }
 
 void loop() {
@@ -173,30 +198,32 @@ void loop() {
     ESP.restart();
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
-    if (wifiLostSince != 0) {
-      Serial.print("Wi-Fi recovered! IP: ");
-      Serial.println(WiFi.localIP());
-      wifiLostSince = 0;
-      reconnectAttempted = false;
-    }
-  } else {
-    unsigned long now = millis();
-    if (wifiLostSince == 0) {
-      wifiLostSince = now;
-      reconnectAttempted = false;
-      Serial.println("Wi-Fi link dropped - waiting for auto-reconnect...");
-    } else if (!reconnectAttempted && now - wifiLostSince >= WIFI_RECONNECT_DELAY_MS) {
-      reconnectAttempted = true;
-      Serial.println("Triggering clean Wi-Fi reconnect to TrashCollector_Robot...");
-      WiFi.disconnect(false);
-      delay(150);
-      WiFi.config(cam_IP, gateway, subnet);
-      WiFi.begin(ssid, password);
-    } else if (now - wifiLostSince >= WIFI_RESTART_TIMEOUT_MS) {
-      Serial.println("Wi-Fi lost >15s - restarting ESP32-S3-CAM cleanly...");
-      delay(100);
-      ESP.restart();
+  if (!standaloneApMode) {
+    if (WiFi.status() == WL_CONNECTED) {
+      if (wifiLostSince != 0) {
+        Serial.print("Wi-Fi recovered! IP: ");
+        Serial.println(WiFi.localIP());
+        wifiLostSince = 0;
+        reconnectAttempted = false;
+      }
+    } else {
+      unsigned long now = millis();
+      if (wifiLostSince == 0) {
+        wifiLostSince = now;
+        reconnectAttempted = false;
+        Serial.println("Wi-Fi link dropped - waiting for auto-reconnect...");
+      } else if (!reconnectAttempted && now - wifiLostSince >= WIFI_RECONNECT_DELAY_MS) {
+        reconnectAttempted = true;
+        Serial.println("Triggering clean Wi-Fi reconnect to TrashCollector_Robot...");
+        WiFi.disconnect(false);
+        delay(150);
+        WiFi.config(cam_IP, gateway, subnet);
+        WiFi.begin(ssid, password);
+      } else if (now - wifiLostSince >= WIFI_RESTART_TIMEOUT_MS) {
+        Serial.println("Wi-Fi lost >15s - restarting ESP32-S3-CAM cleanly...");
+        delay(100);
+        ESP.restart();
+      }
     }
   }
   delay(1000);

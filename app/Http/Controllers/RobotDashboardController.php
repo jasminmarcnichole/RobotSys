@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\FilterRobotLogsRequest;
+use App\Models\CameraSetting;
 use App\Models\RobotCommand;
 use App\Models\RobotLog;
 use App\Services\RobotWorkspaceInsights;
@@ -38,9 +39,10 @@ class RobotDashboardController extends Controller
             ->whereIn('detection_source', ['laptop_camera', 'robot_camera'])
             ->latest()->orderByDesc('id')->take(8)->get();
         $latestDetection = $cameraDetections->first();
+        $cameraSetting = CameraSetting::forRobot($robotId);
         $workspaceInsights = in_array($activePage, ['overview', 'evaluation'], true) ? $this->insights->snapshot($robotId) : null;
 
-        return view('robot.dashboard', compact('activePage', 'dashboardPages', 'latestLog', 'logs', 'filters', 'robotId', 'robotOptions', 'workspaceInsights', 'recentCommands', 'cameraDetections', 'latestDetection'));
+        return view('robot.dashboard', compact('activePage', 'dashboardPages', 'latestLog', 'logs', 'filters', 'robotId', 'robotOptions', 'workspaceInsights', 'recentCommands', 'cameraDetections', 'latestDetection', 'cameraSetting'));
     }
 
     /**
@@ -63,6 +65,16 @@ class RobotDashboardController extends Controller
                 'label' => 'Camera',
                 'route' => 'robot.dashboard.camera',
                 'description' => 'Camera sources & reviewed detections',
+            ],
+            'camera-settings' => [
+                'label' => 'Camera Settings',
+                'route' => 'robot.dashboard.camera-settings',
+                'description' => 'Configure and save ESP32-CAM & detection settings',
+            ],
+            'dataset-capture' => [
+                'label' => 'Dataset Capture',
+                'route' => 'robot.dashboard.dataset-capture',
+                'description' => 'Capture YOLO26n training photos remotely from your phone',
             ],
             'capabilities' => [
                 'label' => 'Capabilities',

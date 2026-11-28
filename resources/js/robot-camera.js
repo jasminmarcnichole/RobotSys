@@ -530,6 +530,7 @@ export function setupCamera(dashboard) {
             snapshot.classList.add('hidden');
             setText('cameraPreviewStatus', 'Device camera');
         } else if (source === 'esp32_camera') {
+            applySavedEspCamSettings();
             startStreamPreview();
         }
         status('Live detection', 'success');
@@ -829,20 +830,67 @@ export function setupCamera(dashboard) {
         filterDetections();
     });
 
-    const sendEspCamSetting = async (variable, value) => {
-        setText('espCamControlStatus', `Applying ${variable}...`);
+    const espCamBaseUrl = (() => {
         try {
-            const res = await fetch(`http://192.168.4.2/control?var=${encodeURIComponent(variable)}&val=${encodeURIComponent(value)}`, {
+            if (dashboard.urls?.cameraStream) {
+                const parsed = new URL(dashboard.urls.cameraStream);
+                return `${parsed.protocol}//${parsed.hostname}`;
+            }
+        } catch {
+            // Fall back to default static ESP32-CAM address
+        }
+        return 'http://192.168.4.2';
+    })();
+
+    const sendEspCamSetting = async (variable, value, silent = false) => {
+        if (!silent) {
+            setText('espCamControlStatus', `Applying ${variable}...`);
+        }
+        try {
+            const res = await fetch(`${espCamBaseUrl}/control?var=${encodeURIComponent(variable)}&val=${encodeURIComponent(value)}`, {
                 method: 'GET',
                 mode: 'cors',
                 cache: 'no-store',
+                signal: globalThis.AbortSignal?.timeout?.(2500),
             });
             if (!res.ok) {
                 throw new Error('Failed');
             }
-            setText('espCamControlStatus', `Saved (${variable}=${value})`);
+            if (!silent) {
+                setText('espCamControlStatus', `Saved (${variable}=${value})`);
+            }
+            return true;
         } catch {
-            setText('espCamControlStatus', 'Camera offline or unsupported resolution');
+            if (!silent) {
+                setText('espCamControlStatus', 'Camera offline or unsupported resolution');
+            }
+            return false;
+        }
+    };
+
+    const applySavedEspCamSettings = async () => {
+        const saved = dashboard.cameraSettings;
+        if (!saved || (window.location?.protocol === 'https:' && espCamBaseUrl.startsWith('http://'))) {
+            return;
+        }
+        const pairs = [
+            ['framesize', saved.framesize],
+            ['quality', saved.quality],
+            ['brightness', saved.brightness],
+            ['contrast', saved.contrast],
+            ['saturation', saved.saturation],
+            ['vflip', saved.vflip ? 1 : 0],
+            ['hmirror', saved.hmirror ? 1 : 0],
+            ['led_intensity', saved.led_intensity ?? 0],
+        ];
+        for (const [variable, value] of pairs) {
+            if (value === undefined || value === null) {
+                continue;
+            }
+            const ok = await sendEspCamSetting(variable, value, true);
+            if (!ok) {
+                break;
+            }
         }
     };
     document.querySelectorAll?.('[data-esp-cam-var]')?.forEach((select) => {
@@ -862,75 +910,4 @@ export function setupCamera(dashboard) {
     populateDevices();
     updateModelWarning();
     controls();
-
-    const onboardStatusEl = get('onboardVisionStatus');
-    if (onboardStatusEl && dashboard.urls?.visionLatest) {
-        let onboardTimer = null;
-        const pollOnboardVision = async () => {
-            clearTimeout(onboardTimer);
-            if (document.hidden) {
-                return;
-            }
-            try {
-                const url = new URL(dashboard.urls?.visionLatest ?? '/dashboard/api/vision/latest', window.location.origin);
-                url.searchParams.set('device_id', dashboard.vision?.onboardDeviceId ?? 'CAM-S3-001');
-                const data = await requestJson(url);
-                const connected = data?.connection_status === 'connected';
-                setPill(onboardStatusEl, connected ? 'success' : 'secondary', connected ? 'Connected' : 'Offline');
-                setText('onboardVisionDevice', data?.device_id || '-');
-                setText('onboardVisionTime', data?.server_time ? new Date(data.server_time).toLocaleTimeString() : '-');
-
-                const detections = Array.isArray(data?.latest?.detections) ? data.latest.detections : [];
-                setText('onboardVisionCount', `${detections.length} object(s)`);
-
-                const detEl = get('onboardVisionDetections');
-                if (detEl) {
-                    const rows = detections.map((d) => {
-                        const row = document.createElement('div');
-                        row.className = 'p-2 bg-zinc-50 rounded border border-zinc-200';
-                        const header = document.createElement('div');
-                        header.className = 'flex justify-between';
-                        const label = document.createElement('span');
-                        label.className = 'font-medium';
-                        label.textContent = String(d.label || d.class_id || 'Object');
-                        const conf = document.createElement('span');
-                        conf.textContent = `${Math.round((Number(d.confidence) || 0) * 100)}%`;
-                        header.append(label, conf);
-                        const meta = document.createElement('div');
-                        meta.className = 'text-xs text-zinc-500';
-                        meta.textContent = `Pos: ${d.direction || '-'} | Box: ${d.bbox?.x ?? 0},${d.bbox?.y ?? 0} ${d.bbox?.width ?? 0}x${d.bbox?.height ?? 0}`;
-                        row.append(header, meta);
-                        return row;
-                    });
-                    detEl.replaceChildren(...rows);
-                }
-
-                const imgEl = get('onboardVisionImage');
-                const noImgEl = get('onboardVisionNoImage');
-                if (data?.latest?.snapshot_url && imgEl) {
-                    imgEl.src = data.latest.snapshot_url;
-                    imgEl.classList.remove('hidden');
-                    noImgEl?.classList.add('hidden');
-                } else if (imgEl) {
-                    imgEl.classList.add('hidden');
-                    noImgEl?.classList.remove('hidden');
-                }
-            } catch {
-                // Keep quiet during background polling
-            } finally {
-                if (!document.hidden) {
-                    onboardTimer = setTimeout(pollOnboardVision, 3000);
-                }
-            }
-        };
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                clearTimeout(onboardTimer);
-            } else {
-                pollOnboardVision();
-            }
-        });
-        window.addEventListener('pagehide', () => clearTimeout(onboardTimer));
-        pollOnboardVision();
-    }
 }

@@ -3,6 +3,8 @@
         'control' => 'command',
         'overview' => 'layout-dashboard',
         'camera' => 'scan-line',
+        'camera-settings' => 'settings-2',
+        'dataset-capture' => 'camera',
         'capabilities' => 'cpu',
         'waste' => 'trash-2',
         'commands' => 'command',

@@ -7,7 +7,10 @@ start "RobotSys YOLO26n Server" cmd /k ".\storage\app\private\waste-training\yol
 echo.
 echo Starting RobotSys Laravel server on http://0.0.0.0:8000 ...
 echo   - Laptop browser: http://127.0.0.1:8000
-echo   - Phone browser / Android APK: http://192.168.4.10:8000
+echo   - Phone browser (on TrashCollector_Robot): http://192.168.4.10:8000
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4 Address" ^| findstr "192.168.4."') do (
+    for /f "tokens=* delims= " %%b in ("%%a") do echo   - Phone browser (active Wi-Fi IP): http://%%b:8000/dashboard/dataset-capture
+)
 echo   - Main ESP32: http://192.168.4.1
 echo   - ESP32-CAM:  http://192.168.4.2
 echo.

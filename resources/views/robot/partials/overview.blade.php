@@ -7,7 +7,7 @@
             Open camera
         </a>
     </div>
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4" data-primary-metrics>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4" data-primary-metrics>
         <article class="metric-card">
             <div class="metric-heading"><h3>Detected trash</h3><img src="{{ asset('icons/scan-line.svg') }}" class="size-4" alt="" aria-hidden="true"></div>
             <p id="detected_trash_count" class="metric-value">{{ (int) ($latestLog?->detected_trash_count ?? 0) }}</p>
@@ -19,12 +19,6 @@
             <p class="metric-value"><span id="success_rate">{{ $totalPickups > 0 ? $successRate : '--' }}</span><span class="metric-unit">%</span></p>
             <p class="mt-4 text-xs text-zinc-500">Successful / total attempts</p>
             <p id="evaluation_collection_note" class="mt-1 text-sm font-medium text-zinc-700">{{ $totalPickups > 0 ? $totalPickups.' pickup attempts' : 'Awaiting pickups' }}</p>
-        </article>
-        <article class="metric-card">
-            <div class="metric-heading"><h3>Operating time</h3><img src="{{ asset('icons/activity.svg') }}" class="size-4" alt="" aria-hidden="true"></div>
-            <p id="operating_duration" class="metric-value">{{ $latestLog ? $formattedOperatingDuration : '--' }}</p>
-            <p class="mt-4 text-xs text-zinc-500">Reported runtime</p>
-            <p class="mt-1 text-sm font-medium text-zinc-700">Robot telemetry</p>
         </article>
     </div>
     <div class="grid gap-6 xl:grid-cols-[1.25fr_1fr]">

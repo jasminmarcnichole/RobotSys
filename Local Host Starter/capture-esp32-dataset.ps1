@@ -1,7 +1,12 @@
 param(
     [string]$CaptureUrl = "http://192.168.4.2/capture",
+    [string]$ControlUrl = "http://192.168.4.2/control",
+    [int]$Framesize = 9,
+    [int]$Quality = 8,
     [string]$OutputRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) "storage\app\private\waste-training\esp32-captures")
 )
+
+Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue
 
 $categories = @{
     ""  = "trash"
@@ -23,6 +28,30 @@ Write-Host "  ESP32-S3-CAM Dataset Capture Tool" -ForegroundColor Cyan
 Write-Host "=============================================" -ForegroundColor Cyan
 Write-Host "Source : $CaptureUrl"
 Write-Host "Output : $OutputRoot"
+Write-Host ""
+
+Write-Host "Applying sharp capture settings (SVGA 800x600, quality=$Quality, contrast=1, sharpness=1)..." -ForegroundColor DarkCyan
+$camSettings = [ordered]@{
+    framesize = $Framesize
+    quality   = $Quality
+    contrast  = 1
+    sharpness = 1
+}
+$settingsOk = $true
+foreach ($entry in $camSettings.GetEnumerator()) {
+    try {
+        Invoke-WebRequest -Uri "${ControlUrl}?var=$($entry.Key)&val=$($entry.Value)" -TimeoutSec 3 -UseBasicParsing | Out-Null
+    } catch {
+        $settingsOk = $false
+        break
+    }
+}
+if ($settingsOk) {
+    Start-Sleep -Milliseconds 300
+    Write-Host "ESP32-S3-CAM configured for sharp SVGA (800x600) capture!" -ForegroundColor Green
+} else {
+    Write-Host "Note: Could not apply settings to $ControlUrl yet (camera will use its current resolution)." -ForegroundColor Yellow
+}
 Write-Host ""
 Write-Host "Keys (press Enter after typing):"
 Write-Host "  [Enter] = trash (general / multi-object)"
@@ -56,12 +85,19 @@ while ($true) {
     try {
         Invoke-WebRequest -Uri $CaptureUrl -OutFile $jpgPath -TimeoutSec 5 -UseBasicParsing
         $sizeKb = [Math]::Round((Get-Item $jpgPath).Length / 1KB, 1)
+        $dimText = ""
+        try {
+            $img = [System.Drawing.Image]::FromFile($jpgPath)
+            $dimText = ", $($img.Width)x$($img.Height)"
+            $img.Dispose()
+        } catch {
+        }
         if ($folder -eq "background") {
             $txtPath = Join-Path (Join-Path $OutputRoot $folder) "$baseName.txt"
             New-Item -ItemType File -Force -Path $txtPath | Out-Null
         }
         $count++
-        Write-Host "[$count] Saved $folder\$baseName.jpg ($sizeKb KB)" -ForegroundColor Green
+        Write-Host "[$count] Saved $folder\$baseName.jpg ($sizeKb KB$dimText)" -ForegroundColor Green
     } catch {
         Write-Host "Failed to capture from $CaptureUrl : $($_.Exception.Message)" -ForegroundColor Red
     }

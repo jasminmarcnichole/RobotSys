@@ -85,9 +85,9 @@
                     <div class="field-group">
                         <div class="flex items-center justify-between gap-2">
                             <label for="cameraThreshold" class="field-label">Minimum confidence</label>
-                            <output id="cameraThresholdLabel" for="cameraThreshold" class="text-sm font-semibold tabular-nums text-emerald-800">60%</output>
+                            <output id="cameraThresholdLabel" for="cameraThreshold" class="text-sm font-semibold tabular-nums text-emerald-800">{{ $cameraSetting->confidence_threshold ?? 60 }}%</output>
                         </div>
-                        <input type="range" id="cameraThreshold" min="20" max="90" value="60" step="5" class="min-h-10 w-full accent-emerald-700">
+                        <input type="range" id="cameraThreshold" min="20" max="90" value="{{ $cameraSetting->confidence_threshold ?? 60 }}" step="5" class="min-h-10 w-full accent-emerald-700">
                     </div>
                     <dl class="grid grid-cols-2 gap-3 rounded-xl border border-zinc-200/70 bg-white p-3 text-xs sm:col-span-2 sm:grid-cols-4">
                         <div><dt class="text-zinc-500">Runtime / model</dt><dd id="cameraActiveModel" class="mt-0.5 font-medium text-zinc-800">TensorFlow Lite / {{ $visionModels[$defaultVisionModel]['name'] }}</dd></div>
@@ -95,62 +95,9 @@
                         <div><dt class="text-zinc-500">Preview</dt><dd id="cameraPreviewStatus" class="mt-0.5 font-medium text-zinc-800" role="status">Inactive</dd></div>
                         <div><dt class="text-zinc-500">Inference</dt><dd class="mt-0.5 font-medium tabular-nums text-zinc-800"><span id="cameraInferenceTime">--</span> ms</dd></div>
                     </dl>
-                    <div class="rounded-xl border border-zinc-200/70 bg-white p-3.5 sm:col-span-2">
-                        <div class="flex items-center justify-between gap-2">
-                            <h4 class="text-xs font-semibold text-zinc-800">ESP32-CAM Live Image Settings (192.168.4.2)</h4>
-                            <span id="espCamControlStatus" class="text-xs text-zinc-500">Ready</span>
-                        </div>
-                        <div class="mt-3 grid gap-3 sm:grid-cols-4">
-                            <div class="field-group">
-                                <label for="espCamFramesize" class="field-label text-xs">Resolution</label>
-                                <select id="espCamFramesize" data-esp-cam-var="framesize" class="form-input text-xs">
-                                    <option value="9">SVGA (800 &times; 600)</option>
-                                    <option value="8" selected>VGA (640 &times; 480)</option>
-                                    <option value="6">HVGA (480 &times; 320)</option>
-                                    <option value="5">QVGA (320 &times; 240)</option>
-                                </select>
-                            </div>
-                            <div class="field-group">
-                                <label for="espCamQuality" class="field-label text-xs">Sharpness / Quality</label>
-                                <select id="espCamQuality" data-esp-cam-var="quality" class="form-input text-xs">
-                                    <option value="6">Ultra Sharp (6)</option>
-                                    <option value="10" selected>High Quality (10)</option>
-                                    <option value="14">Balanced (14)</option>
-                                    <option value="20">Fast Stream (20)</option>
-                                </select>
-                            </div>
-                            <div class="field-group">
-                                <label for="espCamBrightness" class="field-label text-xs">Brightness</label>
-                                <select id="espCamBrightness" data-esp-cam-var="brightness" class="form-input text-xs">
-                                    <option value="2">+2 (Brightest)</option>
-                                    <option value="1">+1 (Bright)</option>
-                                    <option value="0" selected>0 (Normal)</option>
-                                    <option value="-1">-1 (Darker)</option>
-                                    <option value="-2">-2 (Darkest)</option>
-                                </select>
-                            </div>
-                            <div class="field-group">
-                                <label for="espCamContrast" class="field-label text-xs">Contrast</label>
-                                <select id="espCamContrast" data-esp-cam-var="contrast" class="form-input text-xs">
-                                    <option value="2">+2 (High)</option>
-                                    <option value="1" selected>+1 (Crisp)</option>
-                                    <option value="0">0 (Normal)</option>
-                                    <option value="-1">-1 (Soft)</option>
-                                    <option value="-2">-2 (Lowest)</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-3 flex flex-wrap items-center gap-4 border-t border-zinc-100 pt-2.5 text-xs">
-                            <label class="flex cursor-pointer items-center gap-1.5 font-medium text-zinc-700">
-                                <input type="checkbox" data-esp-cam-toggle="vflip" checked class="size-3.5 accent-emerald-700">
-                                <span>Vertical Flip (V-Flip)</span>
-                            </label>
-                            <label class="flex cursor-pointer items-center gap-1.5 font-medium text-zinc-700">
-                                <input type="checkbox" data-esp-cam-toggle="hmirror" class="size-3.5 accent-emerald-700">
-                                <span>Horizontal Mirror (H-Mirror)</span>
-                            </label>
-                            <a href="http://192.168.4.2" target="_blank" rel="noopener noreferrer" class="ml-auto text-emerald-700 hover:underline">Open full ESP32-CAM panel &rarr;</a>
-                        </div>
+                    <div class="flex items-center justify-between gap-2 text-xs text-zinc-500 sm:col-span-2">
+                        <span>Resolution, brightness, contrast, flip, and saved defaults are managed in Camera Settings.</span>
+                        <a href="{{ route('robot.dashboard.camera-settings', ['robot_id' => $robotId]) }}" class="shrink-0 font-medium text-emerald-700 hover:underline">Open Camera Settings &rarr;</a>
                     </div>
                 </div>
             </details>
@@ -193,7 +140,7 @@
             <div class="mt-3 rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-3">
                 <label class="flex cursor-pointer items-center justify-between gap-2 text-xs font-semibold text-zinc-800">
                     <span>Auto-Grab &amp; Sort when trash detected</span>
-                    <input type="checkbox" id="autoGrabToggle" class="size-4 accent-emerald-700">
+                    <input type="checkbox" id="autoGrabToggle" @checked($cameraSetting->auto_grab_enabled ?? false) class="size-4 accent-emerald-700">
                 </label>
                 <button id="grabDetectedWasteButton" type="button" disabled class="button button-secondary mt-2.5 w-full">
                     <span>Grab &amp; Sort Detected Waste Now</span>
@@ -255,29 +202,3 @@
         </aside>
     </div>
 </section>
-<details class="workspace-panel mt-4 p-4 sm:px-6 sm:py-4">
-    <summary class="flex cursor-pointer list-none items-center justify-between gap-3">
-        <div class="flex items-center gap-3">
-            <h3 class="text-sm font-semibold text-zinc-800">Onboard Vision (ESP32-S3)</h3>
-            <span id="onboardVisionStatus" class="status-badge bg-zinc-100 text-zinc-600 ring-zinc-200">Offline</span>
-        </div>
-        <img src="{{ asset('icons/chevron-down.svg') }}" class="details-chevron size-4 opacity-60" alt="" aria-hidden="true">
-    </summary>
-    <div class="mt-4 grid gap-4 border-t border-zinc-100 pt-4 md:grid-cols-2">
-        <div>
-            <img id="onboardVisionImage" src="" alt="Onboard vision frame" class="w-full rounded-xl border border-zinc-200 hidden" />
-            <p id="onboardVisionNoImage" class="text-sm text-zinc-500">No recent frame</p>
-        </div>
-        <div>
-            <div class="mb-2 flex items-center justify-between">
-                <p class="text-sm font-medium">Detections</p>
-                <p id="onboardVisionCount" class="text-xs font-medium text-zinc-600">0 objects</p>
-            </div>
-            <div id="onboardVisionDetections" class="space-y-2 text-sm"></div>
-            <div class="mt-3 flex flex-wrap gap-4 text-xs text-zinc-500">
-                <p>Device: <span id="onboardVisionDevice" class="font-medium text-zinc-700">-</span></p>
-                <p>Last updated: <span id="onboardVisionTime" class="font-medium text-zinc-700">-</span></p>
-            </div>
-        </div>
-    </div>
-</details>
