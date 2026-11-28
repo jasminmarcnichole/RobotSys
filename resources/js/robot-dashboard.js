@@ -317,10 +317,10 @@ if (dashboard) {
     const speedSelect = document.getElementById('armServoSpeedSelect');
     const hasArmCalibration = servoRanges.some(Boolean);
     if (hasArmCalibration) {
-        const STORAGE_KEY = 'robotSys_armPoses_v2';
+        const STORAGE_KEY = 'robotSys_armPoses_v3';
         const defaultPoses = () => ({
             home: [110, 90, 90, 90, 90, 40],
-            front: [110, 135, 125, 115, 90, 40],
+            front: [110, 135, 90, 90, 90, 40],
             rear: [135, 45, 50, 60, 90, 130],
             gripperOpen: 40,
             gripperClosed: 130,
@@ -549,7 +549,7 @@ if (dashboard) {
                 const query = current.map((val, idx) => `s${idx}=${encodeURIComponent(val)}`).join('&');
                 fetchArmEndpoint(`/arm/save?pose=${encodeURIComponent(pose)}&${query}`, `Saving ${pose} pose...`, {
                     updateSliders: false,
-                    preferLocalPoses: true,
+                    preferLocalPoses: false,
                 });
             });
         });

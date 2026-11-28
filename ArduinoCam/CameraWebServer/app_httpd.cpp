@@ -27,6 +27,11 @@
 #include "esp32-hal-log.h"
 #endif
 
+// Shared camera health counters (monitored in CameraWebServer.ino loop() for auto-recovery)
+volatile int cameraCaptureFailCount = 0;
+volatile bool cameraStreamActive = false;
+volatile unsigned long lastCameraFrameMs = 0;
+
 // LED FLASH setup
 #if defined(LED_GPIO_NUM)
 #define CONFIG_LED_MAX_INTENSITY 255
@@ -110,10 +115,12 @@ static esp_err_t bmp_handler(httpd_req_t *req) {
 #endif
   fb = esp_camera_fb_get();
   if (!fb) {
-    log_e("Camera capture failed");
+    cameraCaptureFailCount++;
+    log_e("Camera capture failed (count=%d)", (int)cameraCaptureFailCount);
     httpd_resp_send_500(req);
     return ESP_FAIL;
   }
+  cameraCaptureFailCount = 0;
 
   httpd_resp_set_type(req, "image/x-windows-bmp");
   httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.bmp");
@@ -171,10 +178,12 @@ static esp_err_t capture_handler(httpd_req_t *req) {
 #endif
 
   if (!fb) {
-    log_e("Camera capture failed");
+    cameraCaptureFailCount++;
+    log_e("Camera capture failed (count=%d)", (int)cameraCaptureFailCount);
     httpd_resp_send_500(req);
     return ESP_FAIL;
   }
+  cameraCaptureFailCount = 0;
 
   httpd_resp_set_type(req, "image/jpeg");
   httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
@@ -228,7 +237,10 @@ static esp_err_t stream_handler(httpd_req_t *req) {
   }
 
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-  httpd_resp_set_hdr(req, "X-Framerate", "60");
+  httpd_resp_set_hdr(req, "X-Framerate", "15");
+
+  cameraStreamActive = true;
+  lastCameraFrameMs = millis();
 
 #if defined(LED_GPIO_NUM)
   isStreaming = true;
@@ -238,9 +250,11 @@ static esp_err_t stream_handler(httpd_req_t *req) {
   while (true) {
     fb = esp_camera_fb_get();
     if (!fb) {
-      log_e("Camera capture failed");
+      cameraCaptureFailCount++;
+      log_e("Camera capture failed (count=%d)", (int)cameraCaptureFailCount);
       res = ESP_FAIL;
     } else {
+      cameraCaptureFailCount = 0;
       _timestamp.tv_sec = fb->timestamp.tv_sec;
       _timestamp.tv_usec = fb->timestamp.tv_usec;
       if (fb->format != PIXFORMAT_JPEG) {
@@ -278,6 +292,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
       log_e("Send frame failed");
       break;
     }
+    lastCameraFrameMs = millis();
     int64_t fr_end = esp_timer_get_time();
 
     int64_t frame_time = fr_end - last_frame;
@@ -291,7 +306,12 @@ static esp_err_t stream_handler(httpd_req_t *req) {
       "MJPG: %" PRIu32 "B %" PRId32 "ms (%.1ffps), AVG: %" PRIu32 "ms (%.1ffps)", (uint32_t)_jpg_buf_len, (int32_t)frame_time, 1000.0 / frame_time,
       avg_frame_time, 1000.0 / avg_frame_time
     );
+
+    // Pace stream to ~12-15 FPS so the ESP32-S3 and camera sensor stay cool and avoid FB-OVF lockups
+    vTaskDelay(pdMS_TO_TICKS(65));
   }
+
+  cameraStreamActive = false;
 
 #if defined(LED_GPIO_NUM)
   isStreaming = false;
@@ -675,6 +695,10 @@ static esp_err_t index_handler(httpd_req_t *req) {
 void startCameraServer() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.max_uri_handlers = 16;
+  config.lru_purge_enable = true;
+  config.send_wait_timeout = 2;
+  config.recv_wait_timeout = 2;
+  config.max_open_sockets = 5;
 
   httpd_uri_t index_uri = {
     .uri = "/",

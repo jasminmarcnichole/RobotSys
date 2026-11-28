@@ -549,7 +549,6 @@
         .app-main > footer,
         [data-control-app] > div:first-child,
         [data-control-app] .control-navigation,
-        [data-control-camera],
         [data-apk-download] {
             display: none !important;
         }
@@ -572,7 +571,6 @@
     body.robotsys-app-mode .app-main > footer,
     body.robotsys-app-mode [data-control-app] > div:first-child,
     body.robotsys-app-mode [data-control-app] .control-navigation,
-    body.robotsys-app-mode [data-control-camera],
     body.robotsys-app-mode [data-apk-download] {
         display: none !important;
     }

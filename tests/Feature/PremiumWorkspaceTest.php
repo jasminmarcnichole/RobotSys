@@ -31,7 +31,9 @@ class PremiumWorkspaceTest extends TestCase
         $this->assertSame($command->id, $response->viewData('recentCommands')->first()->id);
         $response->assertSee('Selected bottle')->assertDontSee('Other robot review')
             ->assertSee(route('robot.dashboard.camera', ['robot_id' => 'ROBOT-002']), false)
-            ->assertSee('workspaceSearch')->assertSee('Battery trend');
+            ->assertSee('workspaceSearch')
+            ->assertDontSee('Battery level')
+            ->assertDontSee('Battery trend');
     }
 
     public function test_unknown_and_zero_robot_ids_do_not_fall_back_to_another_robot(): void
@@ -167,5 +169,18 @@ JS;
         $process->setInput($code)->setTimeout(30)->run();
 
         $this->assertTrue($process->isSuccessful(), $process->getErrorOutput().$process->getOutput());
+    }
+
+    public function test_evaluation_page_omits_battery_level_and_battery_trend(): void
+    {
+        RobotLog::factory()->create(['robot_id' => 'ROBOT-001', 'battery_level' => 88]);
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->get(route('robot.dashboard.evaluation', ['robot_id' => 'ROBOT-001']))
+            ->assertOk()
+            ->assertSee('Performance Evaluation')
+            ->assertSee('Recent camera observations')
+            ->assertDontSee('Battery level')
+            ->assertDontSee('Battery trend');
     }
 }

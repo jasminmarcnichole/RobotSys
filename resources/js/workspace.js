@@ -103,14 +103,22 @@ if (dashboard) {
             element.textContent = Number(data.today[element.dataset.insightCount]).toLocaleString();
         });
         const trend = data.battery_trend;
-        const points = trend.map((point, index) => `${24 + index * 592 / Math.max(1, trend.length - 1)},${144 - point.battery * 1.2}`).join(' ');
-        insightsPanel.querySelector('[data-battery-line]').setAttribute('points', points);
-        insightsPanel.querySelector('[data-battery-chart]').toggleAttribute('hidden', trend.length < 2);
-        insightsPanel.querySelector('[data-battery-empty]').hidden = trend.length >= 2;
-        insightsPanel.querySelector('[data-insight-battery]').textContent = trend.length ? `${Math.round(trend.at(-1).battery)}%` : '—';
-        insightsPanel.querySelector('[data-battery-range]').textContent = trend.length
-            ? `${dateLabel(trend[0].reported_at)} → ${dateLabel(trend.at(-1).reported_at)} · Reports in time order; intervals vary.`
-            : 'Reports are ordered by time; gaps between reports can vary.';
+        const batteryLine = insightsPanel.querySelector('[data-battery-line]');
+        if (batteryLine) {
+            const points = trend.map((point, index) => `${24 + index * 592 / Math.max(1, trend.length - 1)},${144 - point.battery * 1.2}`).join(' ');
+            batteryLine.setAttribute('points', points);
+            insightsPanel.querySelector('[data-battery-chart]')?.toggleAttribute('hidden', trend.length < 2);
+            const batteryEmpty = insightsPanel.querySelector('[data-battery-empty]');
+            if (batteryEmpty) batteryEmpty.hidden = trend.length >= 2;
+            const batteryValue = insightsPanel.querySelector('[data-insight-battery]');
+            if (batteryValue) batteryValue.textContent = trend.length ? `${Math.round(trend.at(-1).battery)}%` : '—';
+            const batteryRange = insightsPanel.querySelector('[data-battery-range]');
+            if (batteryRange) {
+                batteryRange.textContent = trend.length
+                    ? `${dateLabel(trend[0].reported_at)} → ${dateLabel(trend.at(-1).reported_at)} · Reports in time order; intervals vary.`
+                    : 'Reports are ordered by time; gaps between reports can vary.';
+            }
+        }
         const reviewContainer = insightsPanel.querySelector('[data-insight-reviews]');
         const rows = data.recent_observations.map((review) => {
             const row = document.createElement('div');

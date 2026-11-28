@@ -24,12 +24,6 @@
             <p id="evaluation_collection_note" class="mt-3 text-xs text-zinc-500">{{ $totalPickups }} pickup attempts</p>
         </article>
         <article class="metric-card">
-            <div class="metric-heading"><h3>Battery level</h3><img src="{{ asset('icons/battery.svg') }}" class="size-4" alt="" aria-hidden="true"></div>
-            <p class="metric-value"><span id="evaluation_battery_endurance">{{ $latestLog ? (int) min(100, max(0, $batteryLevel)) : '--' }}</span><span class="metric-unit">%</span></p>
-            <div class="progress-track mt-4"><span id="evaluation_battery_endurance_bar" class="progress-fill bg-emerald-600" style="width: {{ min(100, max(0, $batteryLevel)) }}%"></span></div>
-            <p id="evaluation_battery_note" class="mt-3 text-xs text-zinc-500">{{ $latestLog ? 'Runtime '.$formattedOperatingDuration : 'Awaiting robot telemetry' }}</p>
-        </article>
-        <article class="metric-card">
             <div class="metric-heading"><h3>Reference load</h3><img src="{{ asset('icons/package.svg') }}" class="size-4" alt="" aria-hidden="true"></div>
             <p class="metric-value"><span id="evaluation_load_capacity">{{ $latestLog ? $loadCapacityUsage : '--' }}</span><span class="metric-unit">%</span></p>
             <div class="progress-track mt-4"><span id="evaluation_load_capacity_bar" class="progress-fill bg-amber-500" style="width: {{ $loadCapacityUsage }}%"></span></div>
@@ -45,5 +39,5 @@
         <img src="{{ asset('icons/circle-help.svg') }}" class="mt-1 size-4 shrink-0" alt="" aria-hidden="true">
         <p>Confidence is the model's score for an object, not measured accuracy. Load is an item-count estimate, not measured bin volume.</p>
     </div>
-    @include('robot.partials.workspace-insights')
+    @include('robot.partials.workspace-insights', ['showBatteryTrend' => false])
 </section>

@@ -7,16 +7,7 @@
             Open camera
         </a>
     </div>
-    <div class="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4" data-primary-metrics>
-        <article class="metric-card">
-            <div class="metric-heading"><h3>Battery level</h3><img src="{{ asset('icons/battery.svg') }}" class="size-4" alt="" aria-hidden="true"></div>
-            <p class="metric-value"><span id="battery_level">{{ $latestLog ? number_format($batteryLevel, 0) : '--' }}</span><span class="metric-unit">%</span></p>
-            @php
-                $batteryBarColor = $batteryLevel <= 20 ? 'bg-red-600' : ($batteryLevel <= 45 ? 'bg-amber-500' : 'bg-emerald-600');
-            @endphp
-            <div class="progress-track mt-4"><span id="battery_bar" class="progress-fill {{ $batteryBarColor }}" style="width: {{ min(100, max(0, $batteryLevel)) }}%"></span></div>
-            <p class="mt-3 text-xs text-zinc-500">Latest reported charge</p>
-        </article>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4" data-primary-metrics>
         <article class="metric-card">
             <div class="metric-heading"><h3>Detected trash</h3><img src="{{ asset('icons/scan-line.svg') }}" class="size-4" alt="" aria-hidden="true"></div>
             <p id="detected_trash_count" class="metric-value">{{ (int) ($latestLog?->detected_trash_count ?? 0) }}</p>
@@ -55,5 +46,5 @@
             </div>
         </section>
     </div>
-    @include('robot.partials.workspace-insights')
+    @include('robot.partials.workspace-insights', ['showBatteryTrend' => false])
 </section>
